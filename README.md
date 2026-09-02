@@ -1,4 +1,4 @@
-# 🚀 DevPilot
+#  DevPilot
 
 > **AI-native developer platform for understanding, analyzing, and improving software projects.**
 
@@ -8,7 +8,7 @@ The platform combines **repository intelligence, static analysis, AI-assisted re
 
 ---
 
-## ✨ Vision
+##  Vision
 
 Modern software projects are becoming increasingly complex.
 
@@ -25,7 +25,7 @@ Developers need to understand:
 
 ---
 
-# 🏗️ System Architecture
+#  System Architecture
 
 ```text
                          ┌──────────────────────────┐
@@ -359,7 +359,7 @@ Audit logging
 Secure worker isolation
 Dependency scanning
 Static Application Security Testing (SAST)
-⚙️ Engineering Principles
+ Engineering Principles
 
 DevPilot follows several engineering principles:
 
@@ -392,6 +392,8 @@ Metrics
 Distributed tracing
 Scan execution metrics
 Error tracking
+
+
 🗺️ Roadmap
 Phase 1 — Foundation
  Repository initialization
@@ -404,6 +406,7 @@ Phase 1 — Foundation
  Project API
  Repository API
  Scan API
+
 Phase 2 — Code Intelligence
  Repository cloning
  File discovery
@@ -412,6 +415,7 @@ Phase 2 — Code Intelligence
  Security rules
  Code quality analysis
  Finding generation
+
 Phase 3 — AI Developer Copilot
  LLM integration
  Code explanations
@@ -420,6 +424,7 @@ Phase 3 — AI Developer Copilot
  Repository Q&A
  RAG pipeline
  Context-aware AI
+
 Phase 4 — Developer Experience
  Dashboard
  Scan history
@@ -428,6 +433,7 @@ Phase 4 — Developer Experience
  Severity filters
  Risk trends
  Pull request reviews
+
 Phase 5 — Production
  Authentication
  RBAC
@@ -439,7 +445,9 @@ Phase 5 — Production
  Observability
  Rate limiting
  Production deployment
-📊 Future Developer Workflow
+
+
+Future Developer Workflow
 
 Eventually, a developer will be able to:
 Connect GitHub
@@ -460,6 +468,8 @@ Developer receives:
       ├── Code Smells
       ├── Performance Issues
       └── AI Fix Suggestions
+
+
 Long-Term Goal
 
 DevPilot is being built toward an AI-native software engineering platform rather than a simple code scanner.
@@ -477,22 +487,33 @@ Ship Software
 to:
 Write → Analyze → Understand → Fix → Review → Ship
                          ↑
-                    AI Copilot
+
+
+     AI Copilot
+
+
 Project Status
 
-Status: 🚧 Active Development
+
+
+Status:  Active Development
 
 DevPilot is currently in the foundational backend/API stage.
 
 The architecture is intentionally designed to evolve from a simple CRUD-based backend into a distributed code intelligence platform with asynchronous analysis and AI-powered developer workflows.
 
-👨‍💻 Author
+
+
+ Author
 
 MD Rahil
 
 B.Tech Computer Science & Engineering
 
 Building toward AI-powered developer tools and intelligent software engineering systems.
+
+
+
 
 ⭐ Why DevPilot?
 
@@ -511,6 +532,7 @@ AI engineering
 Developer tooling
 Software architecture
 Production engineering
-📜 License
 
+
+📜 License
 License will be added as the project matures.
