@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.api.projects import router as projects_router
 from app.api.repositories import router as repositories_router
+from app.api.scans import router as scans_router
 from app.api.users import router as users_router
 
 
@@ -24,3 +25,4 @@ def health():
 app.include_router(users_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
 app.include_router(repositories_router, prefix="/api")
+app.include_router(scans_router, prefix="/api")
