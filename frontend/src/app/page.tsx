@@ -1,69 +1,319 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+
+const API_URL = "http://localhost:8000";
+
+type Project = {
+  id: string;
+  name: string;
+};
+
+type Repository = {
+  id: string;
+  name: string;
+  url: string;
+};
+
+type Scan = {
+  id: string;
+  repository_id: string;
+  status: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+};
+
+type Summary = {
+  total_findings: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+};
 
 export default function Home() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [scans, setScans] = useState<Scan[]>([]);
+  const [summary, setSummary] = useState<Summary>({
+    total_findings: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  const userId = "af137595-d9d4-4524-ae4a-eee6a308f295";
+  const projectId = "635592f4-c955-491f-85ef-e88ac61fac88";
+  const repositoryId = "2129e2f9-8311-416e-b467-6224c82e81bc";
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        const [projectsRes, reposRes, scansRes, summaryRes] =
+          await Promise.all([
+            fetch(`${API_URL}/api/projects?user_id=${userId}`),
+            fetch(`${API_URL}/api/repositories?project_id=${projectId}`),
+            fetch(`${API_URL}/api/scans?repository_id=${repositoryId}`),
+            fetch(
+              `${API_URL}/api/scans/13753da4-9bb0-47f7-97b8-fad27500a548/summary`,
+            ),
+          ]);
+
+        if (projectsRes.ok) setProjects(await projectsRes.json());
+        if (reposRes.ok) setRepositories(await reposRes.json());
+        if (scansRes.ok) setScans(await scansRes.json());
+        if (summaryRes.ok) setSummary(await summaryRes.json());
+      } catch (error) {
+        console.error("Dashboard loading failed:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboard();
+  }, []);
+
+  const stats = [
+    {
+      label: "Projects",
+      value: projects.length,
+      icon: "◈",
+    },
+    {
+      label: "Repositories",
+      value: repositories.length,
+      icon: "⌘",
+    },
+    {
+      label: "Total Scans",
+      value: scans.length,
+      icon: "↗",
+    },
+    {
+      label: "Findings",
+      value: summary.total_findings,
+      icon: "!",
+    },
+  ];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">D</div>
+          <div>
+            <div className="brand-name">DevPilot</div>
+            <div className="brand-subtitle">Code Intelligence</div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
+
+        <nav className="nav">
+          <div className="nav-section">WORKSPACE</div>
+
+          <a className="nav-item active" href="#">
+            <span>⌂</span>
+            Dashboard
           </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
+
+          <a className="nav-item" href="#">
+            <span>◈</span>
+            Projects
           </a>
+
+          <a className="nav-item" href="#">
+            <span>⌘</span>
+            Repositories
+          </a>
+
+          <a className="nav-item" href="#">
+            <span>↗</span>
+            Scans
+          </a>
+
+          <a className="nav-item" href="#">
+            <span>!</span>
+            Findings
+          </a>
+
+          <div className="nav-section">SYSTEM</div>
+
+          <a className="nav-item" href="#">
+            <span>⚙</span>
+            Settings
+          </a>
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="status-dot" />
+          <div>
+            <strong>System online</strong>
+            <span>API connected</span>
+          </div>
         </div>
-      </main>
+      </aside>
+
+      <section className="content">
+        <header className="topbar">
+          <div>
+            <div className="eyebrow">OVERVIEW</div>
+            <h1>Dashboard</h1>
+            <p>Monitor your codebase health and security.</p>
+          </div>
+
+          <div className="profile">
+            <div className="avatar">MR</div>
+            <div>
+              <strong>MD Rahil</strong>
+              <span>Developer</span>
+            </div>
+          </div>
+        </header>
+
+        <div className="dashboard">
+          <section className="stats-grid">
+            {stats.map((stat) => (
+              <article className="stat-card" key={stat.label}>
+                <div className="stat-icon">{stat.icon}</div>
+                <div>
+                  <span>{stat.label}</span>
+                  <strong>{loading ? "—" : stat.value}</strong>
+                </div>
+              </article>
+            ))}
+          </section>
+
+          <section className="main-grid">
+            <article className="panel">
+              <div className="panel-header">
+                <div>
+                  <div className="eyebrow">SECURITY</div>
+                  <h2>Finding overview</h2>
+                </div>
+                <span className="badge">Latest scan</span>
+              </div>
+
+              <div className="finding-total">
+                <strong>{summary.total_findings}</strong>
+                <span>total findings</span>
+              </div>
+
+              <div className="severity-list">
+                <Severity
+                  label="High"
+                  value={summary.high}
+                  className="severity-high"
+                />
+                <Severity
+                  label="Medium"
+                  value={summary.medium}
+                  className="severity-medium"
+                />
+                <Severity
+                  label="Low"
+                  value={summary.low}
+                  className="severity-low"
+                />
+                <Severity
+                  label="Info"
+                  value={summary.info}
+                  className="severity-info"
+                />
+              </div>
+            </article>
+
+            <article className="panel">
+              <div className="panel-header">
+                <div>
+                  <div className="eyebrow">PROJECT</div>
+                  <h2>Active workspace</h2>
+                </div>
+                <span className="live">● LIVE</span>
+              </div>
+
+              <div className="workspace-card">
+                <div className="workspace-icon">D</div>
+                <div>
+                  <strong>DevPilot Core</strong>
+                  <span>Repository security workspace</span>
+                </div>
+              </div>
+
+              <div className="workspace-meta">
+                <div>
+                  <span>Repositories</span>
+                  <strong>{repositories.length}</strong>
+                </div>
+                <div>
+                  <span>Scans</span>
+                  <strong>{scans.length}</strong>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section className="panel scans-panel">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">ACTIVITY</div>
+                <h2>Recent scans</h2>
+              </div>
+
+              <button className="ghost-button">View all →</button>
+            </div>
+
+            <div className="scan-table">
+              <div className="table-head">
+                <span>Repository</span>
+                <span>Status</span>
+                <span>Scan ID</span>
+              </div>
+
+              {scans.length === 0 ? (
+                <div className="empty-state">No scans found.</div>
+              ) : (
+                scans.slice(0, 5).map((scan) => (
+                  <div className="table-row" key={scan.id}>
+                    <strong>
+                      {repositories.find(
+                        (repository) => repository.id === scan.repository_id,
+                      )?.name ?? "Repository"}
+                    </strong>
+
+                    <span className="status-completed">
+                      <i />
+                      {scan.status}
+                    </span>
+
+                    <code>{scan.id.slice(0, 8)}…</code>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function Severity({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: number;
+  className: string;
+}) {
+  return (
+    <div className="severity-row">
+      <div className="severity-label">
+        <i className={className} />
+        <span>{label}</span>
+      </div>
+      <strong>{value}</strong>
     </div>
   );
 }
