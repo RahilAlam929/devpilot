@@ -1,0 +1,29 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: DevPilot Labs Docs
+  structure:
+    - type: section
+      key: section-1
+      title: DevPilot Labs Docs
+      path: devpilot-labs-docs
+      default: true
+      children:
+        - type: space
+          key: space-1
+          title: Untitled
+          path: untitled
+          default: true
+          content:
+            directory: ./devpilot-labs-docs/untitled
+    - type: section
+      key: section-2
+      title: DevPilot Documentation
+      path: devpilot-documentation
+      children:
+        - type: space
+          key: space-2
+          title: DevPilot Documentation
+          path: devpilot-documentation
+          default: true
+          content:
+            directory: ./devpilot-documentation
