@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user
 from app.database import SessionLocal
 from app.models import Project, User
 
@@ -21,7 +22,6 @@ def get_db():
 
 class ProjectCreate(BaseModel):
     name: str
-    user_id: str
 
 
 class ProjectResponse(BaseModel):
@@ -36,19 +36,12 @@ class ProjectResponse(BaseModel):
 @router.post("", response_model=ProjectResponse, status_code=201)
 def create_project(
     project_data: ProjectCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.id == project_data.user_id).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found",
-        )
-
     project = Project(
         name=project_data.name,
-        user_id=project_data.user_id,
+        user_id=current_user.id,
     )
 
     db.add(project)
@@ -60,12 +53,12 @@ def create_project(
 
 @router.get("", response_model=List[ProjectResponse])
 def list_projects(
-    user_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return (
         db.query(Project)
-        .filter(Project.user_id == user_id)
+        .filter(Project.user_id == current_user.id)
         .order_by(Project.created_at.desc())
         .all()
     )
@@ -74,11 +67,15 @@ def list_projects(
 @router.get("/{project_id}", response_model=ProjectResponse)
 def get_project(
     project_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     project = (
         db.query(Project)
-        .filter(Project.id == project_id)
+        .filter(
+            Project.id == project_id,
+            Project.user_id == current_user.id,
+        )
         .first()
     )
 

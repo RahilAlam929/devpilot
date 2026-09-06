@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user
 from app.database import SessionLocal
-from app.models import Project, Repository
+from app.models import Project, Repository, User
 
 
 router = APIRouter(
@@ -45,11 +46,15 @@ class RepositoryResponse(BaseModel):
 )
 def create_repository(
     repository_data: RepositoryCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     project = (
         db.query(Project)
-        .filter(Project.id == repository_data.project_id)
+        .filter(
+            Project.id == repository_data.project_id,
+            Project.user_id == current_user.id,
+        )
         .first()
     )
 
@@ -62,7 +67,7 @@ def create_repository(
     repository = Repository(
         name=repository_data.name,
         url=repository_data.url,
-        project_id=repository_data.project_id,
+        project_id=project.id,
     )
 
     db.add(repository)
@@ -78,11 +83,27 @@ def create_repository(
 )
 def list_repositories(
     project_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail="Project not found",
+        )
+
     return (
         db.query(Repository)
-        .filter(Repository.project_id == project_id)
+        .filter(Repository.project_id == project.id)
         .order_by(Repository.created_at.desc())
         .all()
     )
@@ -94,11 +115,16 @@ def list_repositories(
 )
 def get_repository(
     repository_id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     repository = (
         db.query(Repository)
-        .filter(Repository.id == repository_id)
+        .join(Project, Repository.project_id == Project.id)
+        .filter(
+            Repository.id == repository_id,
+            Project.user_id == current_user.id,
+        )
         .first()
     )
 
