@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-const API_URL = "http://localhost:8000";
+const API_URL = "http://127.0.0.1:8000";
 
 type Project = {
   id: string;
@@ -43,37 +43,227 @@ export default function Home() {
     info: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const [activeScanId, setActiveScanId] = useState<string | null>(null);
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState("");
+  const [scanPath, setScanPath] = useState("/tmp/devpilot-scan-test");
+  const [error, setError] = useState<string | null>(null);
+
+  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const userId = "af137595-d9d4-4524-ae4a-eee6a308f295";
   const projectId = "635592f4-c955-491f-85ef-e88ac61fac88";
-  const repositoryId = "2129e2f9-8311-416e-b467-6224c82e81bc";
+
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [projectsRes, reposRes] = await Promise.all([
+        fetch(`${API_URL}/api/projects?user_id=${userId}`),
+        fetch(`${API_URL}/api/repositories?project_id=${projectId}`),
+      ]);
+
+      if (!projectsRes.ok || !reposRes.ok) {
+        throw new Error("Failed to load dashboard data.");
+      }
+
+      const [projectsData, repositoriesData] = await Promise.all([
+        projectsRes.json(),
+        reposRes.json(),
+      ]);
+
+      setProjects(projectsData);
+      setRepositories(repositoriesData);
+
+      const repositoryExists = repositoriesData.some(
+        (repository: Repository) => repository.id === selectedRepositoryId,
+      );
+
+      const repositoryId =
+        repositoryExists
+          ? selectedRepositoryId
+          : repositoriesData[0]?.id ?? "";
+
+      if (repositoryId !== selectedRepositoryId) {
+        setSelectedRepositoryId(repositoryId);
+        return;
+      }
+
+      if (!repositoryId) {
+        setScans([]);
+        setSummary({
+          total_findings: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          info: 0,
+        });
+        return;
+      }
+
+      const scansRes = await fetch(
+        `${API_URL}/api/scans?repository_id=${repositoryId}`,
+      );
+
+      if (!scansRes.ok) {
+        throw new Error("Failed to load scans.");
+      }
+
+      const scansData = await scansRes.json();
+      setScans(scansData);
+
+      if (scansData.length > 0 && !activeScanId) {
+        const latest = scansData[0];
+
+        const summaryRes = await fetch(
+          `${API_URL}/api/scans/${latest.id}/summary`,
+        );
+
+        if (summaryRes.ok) {
+          setSummary(await summaryRes.json());
+        }
+      }
+    } catch (err) {
+      console.error("Dashboard loading failed:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load dashboard.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [activeScanId, selectedRepositoryId]);
 
   useEffect(() => {
-    async function loadDashboard() {
-      try {
-        const [projectsRes, reposRes, scansRes, summaryRes] =
-          await Promise.all([
-            fetch(`${API_URL}/api/projects?user_id=${userId}`),
-            fetch(`${API_URL}/api/repositories?project_id=${projectId}`),
-            fetch(`${API_URL}/api/scans?repository_id=${repositoryId}`),
-            fetch(
-              `${API_URL}/api/scans/13753da4-9bb0-47f7-97b8-fad27500a548/summary`,
-            ),
-          ]);
+    void loadDashboard();
+  }, [loadDashboard]);
 
-        if (projectsRes.ok) setProjects(await projectsRes.json());
-        if (reposRes.ok) setRepositories(await reposRes.json());
-        if (scansRes.ok) setScans(await scansRes.json());
-        if (summaryRes.ok) setSummary(await summaryRes.json());
-      } catch (error) {
-        console.error("Dashboard loading failed:", error);
-      } finally {
-        setLoading(false);
+  const refreshScan = useCallback(
+    async (scanId: string) => {
+      const [scanRes, summaryRes, scansRes] = await Promise.all([
+        fetch(`${API_URL}/api/scans/${scanId}`),
+        fetch(`${API_URL}/api/scans/${scanId}/summary`),
+        fetch(
+          `${API_URL}/api/scans?repository_id=${selectedRepositoryId}`,
+        ),
+      ]);
+
+      if (!scanRes.ok) {
+        throw new Error("Failed to fetch scan status.");
       }
+
+      const scan: Scan = await scanRes.json();
+
+      if (summaryRes.ok) {
+        setSummary(await summaryRes.json());
+      }
+
+      if (scansRes.ok) {
+        setScans(await scansRes.json());
+      }
+
+      return scan;
+    },
+    [selectedRepositoryId],
+  );
+
+  const pollScan = useCallback(
+    async (scanId: string) => {
+      try {
+        const scan = await refreshScan(scanId);
+
+        if (scan.status === "pending" || scan.status === "running") {
+          setScanning(true);
+
+          pollingRef.current = setTimeout(() => {
+            void pollScan(scanId);
+          }, 1000);
+
+          return;
+        }
+
+        setScanning(false);
+
+        if (scan.status === "failed") {
+          setError("Scan failed. Check the backend logs.");
+        }
+      } catch (err) {
+        console.error("Scan polling failed:", err);
+        setScanning(false);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Realtime scan update failed.",
+        );
+      }
+    },
+    [refreshScan],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearTimeout(pollingRef.current);
+      }
+    };
+  }, []);
+
+  async function runScan() {
+    if (!selectedRepositoryId) {
+      setError("Please select a repository.");
+      return;
     }
 
-    loadDashboard();
-  }, []);
+    if (!scanPath.trim()) {
+      setError("Please enter a repository path.");
+      return;
+    }
+
+    if (pollingRef.current) {
+      clearTimeout(pollingRef.current);
+    }
+
+    setError(null);
+    setScanning(true);
+    setSummary({
+      total_findings: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
+      info: 0,
+    });
+
+    try {
+      const response = await fetch(`${API_URL}/api/scans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          repository_id: selectedRepositoryId,
+          repository_path: scanPath.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start scan.");
+      }
+
+      const scan: Scan = await response.json();
+
+      setActiveScanId(scan.id);
+
+      await refreshScan(scan.id);
+      void pollScan(scan.id);
+    } catch (err) {
+      console.error("Run scan failed:", err);
+      setScanning(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to start scan.",
+      );
+    }
+  }
 
   const stats = [
     {
@@ -172,6 +362,79 @@ export default function Home() {
         </header>
 
         <div className="dashboard">
+          <section className="panel scan-control-panel">
+            <div className="panel-header">
+              <div>
+                <div className="eyebrow">SCANNER</div>
+                <h2>Run security scan</h2>
+              </div>
+
+              <span className={scanning ? "live scanning" : "live"}>
+                ● {scanning ? "SCANNING" : "READY"}
+              </span>
+            </div>
+
+            <div className="scan-controls">
+              <label>
+                <span>Repository</span>
+                <select
+                  value={selectedRepositoryId}
+                  onChange={(event) => {
+                    setSelectedRepositoryId(event.target.value);
+                    setActiveScanId(null);
+                    setSummary({
+                      total_findings: 0,
+                      high: 0,
+                      medium: 0,
+                      low: 0,
+                      info: 0,
+                    });
+                  }}
+                  disabled={scanning}
+                >
+                  {repositories.map((repository) => (
+                    <option key={repository.id} value={repository.id}>
+                      {repository.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Scan path</span>
+                <input
+                  value={scanPath}
+                  onChange={(event) => setScanPath(event.target.value)}
+                  placeholder="/path/to/repository"
+                  disabled={scanning}
+                />
+              </label>
+
+              <button
+                className="primary-button"
+                onClick={runScan}
+                disabled={scanning || repositories.length === 0}
+              >
+                {scanning ? "Scanning…" : "Run Scan →"}
+              </button>
+            </div>
+
+            {error && (
+              <div className="scan-error">
+                <strong>Scan error</strong>
+                <span>{error}</span>
+                <button onClick={() => setError(null)}>×</button>
+              </div>
+            )}
+
+            {activeScanId && (
+              <div className="active-scan">
+                <span>Scan ID</span>
+                <code>{activeScanId.slice(0, 12)}…</code>
+              </div>
+            )}
+          </section>
+
           <section className="stats-grid">
             {stats.map((stat) => (
               <article className="stat-card" key={stat.label}>
@@ -281,7 +544,7 @@ export default function Home() {
                       )?.name ?? "Repository"}
                     </strong>
 
-                    <span className="status-completed">
+                    <span className={`scan-status ${scan.status}`}>
                       <i />
                       {scan.status}
                     </span>

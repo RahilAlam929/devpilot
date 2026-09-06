@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -53,6 +53,52 @@ class FindingResponse(BaseModel):
         from_attributes = True
 
 
+def run_scan_background(
+    scan_id: str,
+    repository_id: str,
+    repository_path: str,
+):
+    """
+    Execute a scan outside the HTTP request lifecycle.
+
+    A fresh database session is created because the original
+    request session must not be reused inside BackgroundTasks.
+    """
+    db = SessionLocal()
+
+    try:
+        scan = (
+            db.query(Scan)
+            .filter(Scan.id == scan_id)
+            .first()
+        )
+
+        repository = (
+            db.query(Repository)
+            .filter(Repository.id == repository_id)
+            .first()
+        )
+
+        if not scan or not repository:
+            return
+
+        engine = ScanEngine(
+            db=db,
+            scan=scan,
+            repository=repository,
+        )
+
+        engine.run(repository_path)
+
+    except Exception:
+        # ScanEngine already marks the scan as failed.
+        # Roll back any transaction that may still be open.
+        db.rollback()
+
+    finally:
+        db.close()
+
+
 @router.post(
     "",
     response_model=ScanResponse,
@@ -60,6 +106,7 @@ class FindingResponse(BaseModel):
 )
 def create_scan(
     scan_data: ScanCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     repository = (
@@ -83,26 +130,12 @@ def create_scan(
     db.commit()
     db.refresh(scan)
 
-    try:
-        engine = ScanEngine(
-            db=db,
-            scan=scan,
-            repository=repository,
-        )
-
-        engine.run(scan_data.repository_path)
-
-    except (FileNotFoundError, NotADirectoryError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        )
-
-    except Exception:
-        raise HTTPException(
-            status_code=500,
-            detail="Scan failed",
-        )
+    background_tasks.add_task(
+        run_scan_background,
+        scan.id,
+        repository.id,
+        scan_data.repository_path,
+    )
 
     return scan
 
