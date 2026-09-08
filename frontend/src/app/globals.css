@@ -886,3 +886,666 @@ h2 {
     align-items: flex-start;
   }
 }
+
+/* =========================================================
+   AUTH PAGES
+   ========================================================= */
+
+.auth-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 32px;
+}
+
+.auth-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+
+.auth-subtitle {
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field > span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.58;
+}
+
+.field input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid rgba(128, 128, 128, 0.22);
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.06);
+  color: inherit;
+  font: inherit;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.field input:focus {
+  border-color: rgba(120, 150, 255, 0.7);
+  background: rgba(120, 150, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(120, 150, 255, 0.1);
+}
+
+.field input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.auth-error {
+  padding: 11px 14px;
+  border: 1px solid rgba(255, 90, 90, 0.3);
+  border-radius: 9px;
+  background: rgba(255, 90, 90, 0.08);
+  color: #fca5a5;
+  font-size: 12px;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.auth-footer {
+  margin: 22px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.auth-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-link:hover {
+  opacity: 0.75;
+}
+
+/* =========================================================
+   AUTH LOADING SPLASH
+   ========================================================= */
+
+.auth-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 16px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* =========================================================
+   TOPBAR — USER ACTIONS
+   ========================================================= */
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logout-btn {
+  font-size: 11px;
+  padding: 6px 12px;
+}
+
+/* =========================================================
+   NAVIGATION — LOGOUT BUTTON STYLE
+   ========================================================= */
+
+.nav-logout {
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
+  color: var(--muted);
+}
+
+.nav-logout:hover {
+  color: var(--text);
+  background: #15181d;
+}
+
+/* =========================================================
+   SELECTORS PANEL
+   ========================================================= */
+
+.selectors-panel {
+  margin-top: 14px;
+}
+
+.selectors-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-top: 20px;
+}
+
+.selector-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.selector-group label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.selector-group label > span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.58;
+}
+
+.selector-group select {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid rgba(128, 128, 128, 0.22);
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.06);
+  color: inherit;
+  font: inherit;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23858b94' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.selector-group select:focus {
+  border-color: rgba(120, 150, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(120, 150, 255, 0.1);
+}
+
+.selector-group select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Inline create forms ── */
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.inline-form input {
+  flex: 1;
+  min-width: 140px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(128, 128, 128, 0.22);
+  border-radius: 9px;
+  background: rgba(128, 128, 128, 0.06);
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.inline-form input:focus {
+  border-color: rgba(120, 150, 255, 0.7);
+  box-shadow: 0 0 0 2px rgba(120, 150, 255, 0.1);
+}
+
+.inline-form .primary-button,
+.inline-form .ghost-button {
+  height: 40px;
+  font-size: 12px;
+  padding: 0 14px;
+}
+
+.repo-form {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.repo-form input {
+  min-width: unset;
+  width: 100%;
+}
+
+.repo-form .primary-button,
+.repo-form .ghost-button {
+  width: auto;
+}
+
+.repo-form-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.inline-error {
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 90, 90, 0.25);
+  border-radius: 8px;
+  background: rgba(255, 90, 90, 0.06);
+  color: #fca5a5;
+  font-size: 11px;
+}
+
+/* =========================================================
+   SCAN PANEL ROOT
+   ========================================================= */
+
+.scan-panel-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+/* scan-controls with only path input + button */
+.scan-controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: end;
+  margin-top: 22px;
+}
+
+/* ── Scan row actions (ID + findings button) ── */
+
+.scan-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scan-row-actions .ghost-button {
+  padding: 4px 9px;
+  font-size: 9px;
+}
+
+@media (max-width: 900px) {
+  .selectors-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .scan-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .primary-button.auth-submit,
+  .scan-controls .primary-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .auth-card {
+    padding: 28px 20px;
+  }
+
+  .topbar-right .logout-btn {
+    display: none;
+  }
+}
+
+/* =========================================================
+   PAGE BODY (content area inside PageShell)
+   ========================================================= */
+
+.page-body {
+  padding: 28px 48px 60px;
+  max-width: 1500px;
+}
+
+.page-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page-section-sub {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* =========================================================
+   ITEM GRID (project/repo cards)
+   ========================================================= */
+
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.item-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+  transition: background 160ms ease, border-color 160ms ease;
+  cursor: pointer;
+}
+
+.item-card:hover {
+  background: var(--panel-hover);
+  border-color: #2e3440;
+}
+
+.item-card-icon {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #1b1f25;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.item-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item-card-body strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.item-card-body span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.item-card-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-card-arrow {
+  color: var(--muted-2);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  width: 100%;
+  max-width: 460px;
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #0e1013;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.modal-close {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--text);
+  background: #15181d;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.modal-actions .primary-button {
+  height: 42px;
+  font-size: 12px;
+}
+
+.modal-actions .ghost-button {
+  height: 42px;
+  font-size: 12px;
+}
+
+/* =========================================================
+   FILTER CHIPS (severity filter)
+   ========================================================= */
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.filter-chip:hover {
+  color: var(--text);
+  background: #15181d;
+}
+
+.filter-chip-active {
+  color: var(--text) !important;
+  background: #15181d !important;
+  border-color: #3b4048 !important;
+}
+
+.filter-chip-count {
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.18);
+  font-size: 9px;
+}
+
+.filter-chip-high.filter-chip-active { border-color: rgba(248, 113, 113, 0.5) !important; }
+.filter-chip-medium.filter-chip-active { border-color: rgba(251, 191, 36, 0.5) !important; }
+.filter-chip-low.filter-chip-active { border-color: rgba(96, 165, 250, 0.5) !important; }
+.filter-chip-info.filter-chip-active { border-color: rgba(167, 139, 250, 0.5) !important; }
+
+/* =========================================================
+   SCAN TABLE (extended for scans page)
+   ========================================================= */
+
+.scan-table-head,
+.scan-table-row {
+  grid-template-columns: 1.5fr 1fr 1.5fr 1fr !important;
+}
+
+.scan-time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.scan-id-display {
+  display: block;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.04);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+/* =========================================================
+   FINDING DESCRIPTION (extra line)
+   ========================================================= */
+
+.finding-desc {
+  font-size: 11px;
+  opacity: 0.45;
+  margin-top: 2px;
+}
+
+/* =========================================================
+   RESPONSIVE — PAGE BODY
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .page-body {
+    padding: 20px 24px 40px;
+  }
+
+  .scan-table-head,
+  .scan-table-row {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .scan-table-head span:nth-child(3),
+  .scan-table-head span:nth-child(4),
+  .scan-table-row .scan-time,
+  .scan-table-row .scan-row-actions {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .page-body {
+    padding: 16px 16px 40px;
+  }
+
+  .page-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .page-section-header .primary-button {
+    width: 100%;
+  }
+
+  .item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal {
+    padding: 24px 18px;
+  }
+
+  .filter-chips {
+    gap: 6px;
+  }
+
+  .filter-chip {
+    font-size: 10px;
+    padding: 5px 10px;
+  }
+}
