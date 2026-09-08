@@ -1,538 +1,814 @@
-#  DevPilot
+# DevPilot
 
-> **AI-native developer platform for understanding, analyzing, and improving software projects.**
-
-DevPilot is a developer productivity and code intelligence platform designed to help engineers understand their codebases, detect potential issues, review code, and continuously improve software quality.
-
-The platform combines **repository intelligence, static analysis, AI-assisted reasoning, and developer workflows** into a single system.
+A static analysis platform for software repositories — detect code quality, security, and maintainability issues through a REST API and web dashboard.
 
 ---
 
-##  Vision
+## Overview
 
-Modern software projects are becoming increasingly complex.
+DevPilot is a full-stack code intelligence platform that runs static analysis against local code repositories and surfaces findings categorized by severity. You point it at a directory on disk, it walks the source files line by line, and stores every detected issue in a queryable PostgreSQL database.
 
-Developers need to understand:
+**Problem it solves:** Manually auditing codebases for debug statements, broad error handling, hardcoded credentials, and unfinished work markers is tedious and error-prone. DevPilot automates that sweep and makes the results accessible via a REST API and a Next.js dashboard.
 
-- What is happening inside a codebase?
-- Where are the potential bugs?
-- Which files introduce security or quality risks?
-- What changed between scans?
-- How can an issue be fixed?
-- Can AI explain the problem in developer-friendly language?
+**Core workflow:**
 
-**DevPilot aims to answer these questions automatically.**
+```
+Register / Login
+      │
+      ▼
+Create a Project
+      │
+      ▼
+Register a Repository  (name + URL stored; no cloning)
+      │
+      ▼
+POST /api/scans  { repository_id, repository_path }
+      │
+      ▼
+FastAPI BackgroundTask runs static analysis on the local path
+      │
+      ▼
+Findings stored in PostgreSQL  (high / medium / low / info)
+      │
+      ▼
+Query findings via API or view the dashboard summary
+```
 
 ---
 
-#  System Architecture
+## Features
 
-```text
-                         ┌──────────────────────────┐
-                         │        Developer         │
-                         │   Web Dashboard / UI     │
-                         └────────────┬─────────────┘
-                                      │
-                                      ▼
-                         ┌──────────────────────────┐
-                         │      Next.js Frontend    │
-                         │      TypeScript + UI     │
-                         └────────────┬─────────────┘
-                                      │
-                              REST / JSON API
-                                      │
-                                      ▼
-                         ┌──────────────────────────┐
-                         │       FastAPI Backend    │
-                         │                          │
-                         │  Auth / Projects / API  │
-                         │  Repository Management   │
-                         │  Scan Management        │
-                         └───────┬─────────┬────────┘
-                                 │         │
-                    ┌────────────┘         └─────────────┐
-                    ▼                                    ▼
-          ┌──────────────────┐                 ┌──────────────────┐
-          │   PostgreSQL     │                 │  Redis / Workers │
-          │                  │                 │                  │
-          │ Users            │                 │ Async Jobs       │
-          │ Projects         │                 │ Repository Scan  │
-          │ Repositories     │                 │ Code Analysis    │
-          │ Scans            │                 │ AI Processing    │
-          │ Findings         │                 └────────┬─────────┘
-          └──────────────────┘                          │
-                                                        ▼
-                                             ┌────────────────────┐
-                                             │  Analysis Engine   │
-                                             │                    │
-                                             │ Static Analysis    │
-                                             │ Security Checks    │
-                                             │ Code Quality       │
-                                             │ AI Reasoning       │
-                                             └─────────┬──────────┘
-                                                       │
-                                                       ▼
-                                             ┌────────────────────┐
-                                             │      Findings      │
-                                             │                    │
-                                             │ Severity           │
-                                             │ File               │
-                                             │ Line               │
-                                             │ Description        │
-                                             │ Suggested Fix      │
-                                             └────────────────────┘
-How DevPilot Works
+### Currently Implemented
 
-The core workflow is:
-GitHub Repository
-       │
-       ▼
-Connect Repository
-       │
-       ▼
-Create Scan
-       │
-       ▼
-Repository Worker
-       │
-       ▼
-Clone / Fetch Code
-       │
-       ▼
-Code Analysis
-       │
-       ├── Bugs
-       ├── Security Issues
-       ├── Code Smells
-       ├── Performance Issues
-       └── Maintainability
-       │
-       ▼
-AI Analysis
-       │
-       ▼
-Findings
-       │
-       ▼
-Developer Dashboard
-Core Domain Model
-User
- │
- └── Project
-       │
-       └── Repository
-             │
-             └── Scan
-                   │
-                   └── Finding
-User
+- Email + password registration and login with Argon2 password hashing
+- JWT access tokens stored in HttpOnly cookies
+- User-scoped resources — cross-user access is rejected at every layer
+- Project and repository management (create, list, retrieve)
+- Asynchronous scan execution via FastAPI `BackgroundTasks`
+- Scan lifecycle tracking: `pending → running → completed` / `failed`
+- Regex-based static analysis across 14 file extensions
+- Severity-bucketed findings: `high`, `medium`, `low`, `info`
+- Scan summary endpoint returning per-severity counts
+- Next.js dashboard (prototype): trigger scans, view status, and review finding summaries
+- PostgreSQL 16 with Alembic-managed schema migrations
+- Docker Compose service for the database
 
-Represents a DevPilot account.
+### Planned
 
-Project
+- Automatic repository cloning from a remote URL
+- GitHub OAuth and webhook integration
+- Frontend authentication UI (login/register forms)
+- Full frontend routing — projects, repositories, scans, findings explorer
+- Redis + Celery background worker infrastructure
+- AST-based analysis beyond regex
+- AI-assisted finding explanations and fix suggestions
+- RBAC, rate limiting, and team workspaces
+- CI/CD pipelines and production deployment configuration
+- Automated test suite
 
-Logical workspace containing repositories.
+---
 
-Repository
+## Architecture
 
-A Git repository connected to a project.
+```mermaid
+flowchart TD
+    Browser["Browser\nNext.js (port 3000)"]
 
-Scan
+    subgraph Backend["FastAPI Backend (port 8000)"]
+        direction TB
+        Router["API Routers\n/api/*"]
+        AuthMW["get_current_user\nJWT cookie → User"]
+        ProjR["Projects Router"]
+        RepoR["Repositories Router"]
+        ScanR["Scans Router"]
+        BG["FastAPI BackgroundTask"]
+        Engine["ScanEngine.run()"]
+        Analyzers["analyze_repository()\nRegex rules per file"]
+    end
 
-An analysis execution against a repository.
+    DB[(PostgreSQL 16\nport 5433)]
+    Docker["docker-compose\npostgres:16-alpine"]
 
-Finding
+    Browser -->|"HTTP/JSON + cookie"| Router
+    Router --> AuthMW
+    AuthMW --> ProjR
+    AuthMW --> RepoR
+    AuthMW --> ScanR
+    ScanR -->|"add_task()"| BG
+    BG --> Engine
+    Engine --> Analyzers
+    ProjR & RepoR & ScanR & Analyzers -->|SQLAlchemy 2.0| DB
+    Docker -.->|provisions| DB
+```
 
-An issue discovered during a scan.
+**Request path for a protected endpoint:**
 
-Examples:
-CRITICAL
-HIGH
-MEDIUM
-LOW
-INFO
-Project Structure
+1. Cookie `devpilot_token` is read from the request.
+2. JWT is decoded; the `sub` claim resolves to a `User.id`.
+3. The handler filters all queries by the authenticated user's ownership chain.
+4. For scans: a `Scan` row is created with `status="pending"`, the HTTP response is returned immediately, and a `BackgroundTask` drives the engine in a separate database session.
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| Frontend framework | Next.js 16.3.4 | React server/client rendering, routing |
+| UI language | TypeScript 5 | Type-safe frontend development |
+| Styling | Tailwind CSS 4 | Utility-first CSS |
+| Backend framework | FastAPI 0.128.8 | Async HTTP API, dependency injection |
+| Runtime | Python 3.9 / Uvicorn 0.39 | ASGI server |
+| ORM | SQLAlchemy 2.0 | Database access and model definition |
+| Migrations | Alembic 1.16.5 | Schema versioning |
+| Database | PostgreSQL 16 | Persistent storage |
+| DB driver | psycopg 3.2.13 (binary) | Async-capable PostgreSQL adapter |
+| Validation | Pydantic 2.13 + pydantic-settings 2.11 | Request/response validation, settings |
+| Password hashing | pwdlib 0.2.1 (Argon2 via argon2-cffi) | Secure credential storage |
+| Authentication | PyJWT 2.13 (HS256) | Stateless JWT tokens |
+| Infrastructure | Docker + Compose | Local PostgreSQL provisioning |
+
+---
+
+## Project Structure
+
+```
 devpilot/
-│
-├── frontend/
-│   ├── src/
-│   │   └── app/
-│   ├── public/
-│   ├── package.json
-│   └── tsconfig.json
-│
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── users.py
-│   │   │   ├── projects.py
-│   │   │   ├── repositories.py
-│   │   │   └── scans.py
-│   │   │
+│   │   │   ├── auth.py          # /api/auth — register, login, logout, me
+│   │   │   ├── users.py         # /api/users — legacy unauthenticated user creation
+│   │   │   ├── projects.py      # /api/projects — project CRUD
+│   │   │   ├── repositories.py  # /api/repositories — repository CRUD
+│   │   │   └── scans.py         # /api/scans — scan creation, status, findings
 │   │   ├── models/
-│   │   │   └── models.py
-│   │   │
-│   │   └── database.py
-│   │
+│   │   │   └── models.py        # SQLAlchemy ORM: User, Project, Repository, Scan, Finding
+│   │   ├── services/
+│   │   │   └── scan_engine/
+│   │   │       ├── engine.py    # ScanEngine — orchestrates a single scan run
+│   │   │       └── analyzers.py # analyze_repository() — regex rules per file
+│   │   ├── auth.py              # JWT encode/decode, Argon2 password helpers
+│   │   └── database.py          # SQLAlchemy engine, session factory, pydantic Settings
 │   ├── migrations/
-│   ├── main.py
-│   ├── alembic.ini
-│   └── requirements.txt
+│   │   ├── env.py               # Alembic runtime config (reads sqlalchemy.url from alembic.ini)
+│   │   └── versions/            # Migration scripts
+│   ├── main.py                  # FastAPI app factory, CORS, router registration
+│   └── alembic.ini              # Alembic configuration
 │
-├── workers/
+├── frontend/
+│   └── src/app/
+│       ├── page.tsx             # Single-page dashboard (prototype)
+│       ├── layout.tsx           # Root HTML layout
+│       └── globals.css          # Tailwind base + custom component styles
 │
-├── infrastructure/
-│
-├── tests/
-│
-├── docs/
-│
-├── .github/
-│   └── workflows/
-│
-├── docker-compose.yml
-├── .gitignore
+├── docs/                        # Architecture notes and getting-started draft
+├── workers/                     # Empty — planned background worker infrastructure
+├── infrastructure/              # Empty — planned deployment configuration
+├── tests/                       # Empty — planned test suite
+├── docker-compose.yml           # PostgreSQL 16 service definition
 └── README.md
-API Architecture
+```
 
-DevPilot exposes a REST API.
+---
 
-Health
-GET /health
-Returns API health information.
-Users
+## Getting Started
 
-Create a user:
-POST /api/users
-{
-  "email": "developer@example.com",
-  "name": "Developer"
-}
-Projects
+### Prerequisites
 
-Create project:
-POST /api/projects
-List projects:
-GET /api/projects?user_id=<USER_ID>
-Get project:
-GET /api/projects/<PROJECT_ID>
-Repositories
+| Tool | Required version |
+|------|-----------------|
+| Python | 3.9 or later |
+| Node.js | 18 or later |
+| Docker | Any recent version with Compose v2 |
+| Git | Any |
 
-Connect repository:
-POST /api/repositories
-Example:
-{
-  "name": "my-project",
-  "url": "https://github.com/example/my-project",
-  "project_id": "<PROJECT_ID>"
-}
-List repositories:
-GET /api/repositories?project_id=<PROJECT_ID>
-Scans
+### 1. Clone the repository
 
-Create scan
-POST /api/scans
-Example:
-{
-  "repository_id": "<REPOSITORY_ID>"
-}
-Get scan:
-GET /api/scans/<SCAN_ID>
-Database Design
-
-DevPilot currently uses PostgreSQL with SQLAlchemy and Alembic.
-┌──────────────┐
-│    users     │
-├──────────────┤
-│ id           │
-│ email        │
-│ name         │
-│ created_at   │
-└──────┬───────┘
-       │
-       │ 1:N
-       ▼
-┌──────────────┐
-│   projects   │
-├──────────────┤
-│ id           │
-│ name         │
-│ user_id      │
-│ created_at   │
-└──────┬───────┘
-       │
-       │ 1:N
-       ▼
-┌────────────────┐
-│  repositories  │
-├────────────────┤
-│ id             │
-│ name           │
-│ url            │
-│ project_id     │
-│ created_at     │
-└───────┬────────┘
-        │
-        │ 1:N
-        ▼
-┌──────────────┐
-│    scans     │
-├──────────────┤
-│ id           │
-│ repository_id│
-│ status       │
-│ started_at   │
-│ completed_at │
-└──────┬───────┘
-       │
-       │ 1:N
-       ▼
-┌──────────────┐
-│   findings   │
-├──────────────┤
-│ id           │
-│ scan_id      │
-│ severity     │
-│ title        │
-│ description  │
-│ file_path    │
-│ line_number  │
-└──────────────┘
-Local Development
-Prerequisites
-
-Make sure you have:
-
-Node.js
-Python 3.9+
-Docker
-Git
-Clone
+```bash
 git clone https://github.com/RahilAlam929/devpilot.git
 cd devpilot
-Start PostgreSQL
+```
+
+### 2. Start PostgreSQL
+
+```bash
 docker compose up -d postgres
-Verify:
-docker ps
-PostgreSQL is exposed locally on:
-127.0.0.1:5433
-Backend Setup
+```
+
+PostgreSQL 16 will be reachable at `127.0.0.1:5433`. The container is named `devpilot-postgres` and uses a persistent named volume (`postgres_data`).
+
+### 3. Backend — virtual environment and dependencies
+
+```bash
 cd backend
-Create virtual environment:
+
 python3 -m venv .venv
-Activate:
-source .venv/bin/activate
-Install dependencies:
-pip install -r requirements.txt
-Configure environment:
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+pip install \
+  fastapi \
+  "uvicorn[standard]" \
+  sqlalchemy \
+  alembic \
+  "psycopg[binary]" \
+  pydantic \
+  pydantic-settings \
+  pyjwt \
+  "pwdlib[argon2]" \
+  email-validator \
+  python-dotenv
+```
+
+### 4. Environment variables
+
+Create `backend/.env` with the following keys. Do not commit this file.
+
+```env
 DATABASE_URL=postgresql+psycopg://devpilot:devpilot_dev_password@127.0.0.1:5433/devpilot
-Run migrations:
+JWT_SECRET_KEY=replace-with-a-long-random-string
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+AUTH_COOKIE_NAME=devpilot_token
+```
+
+> `JWT_SECRET_KEY` must be a strong random value. Generate one with:
+> ```bash
+> python3 -c "import secrets; print(secrets.token_hex(32))"
+> ```
+
+> **Alembic note:** `alembic.ini` contains a hardcoded `sqlalchemy.url`. For local development the default value matches the Docker Compose credentials. Update it if your database connection differs.
+
+### 5. Run database migrations
+
+```bash
+# from backend/ with the virtual environment active
 alembic upgrade head
-Start API:
+```
+
+### 6. Start the backend
+
+```bash
 uvicorn main:app --reload --port 8000
-API:
-http://127.0.0.1:8000
-Swagger documentation:
-OpenAPI:
-http://127.0.0.1:8000/openapi.json
-Frontend Setup
-cd frontend
+```
+
+- API: `http://127.0.0.1:8000`
+- Interactive docs (Swagger UI): `http://127.0.0.1:8000/docs`
+- Health check: `http://127.0.0.1:8000/health`
+
+### 7. Frontend setup
+
+```bash
+cd ../frontend
 npm install
 npm run dev
-Testing
+```
 
-Backend health check:
-curl http://127.0.0.1:8000/health
-Security Principles
+Dashboard: `http://localhost:3000`
 
-DevPilot is being designed with production engineering practices in mind.
+> **Prototype limitation:** `page.tsx` currently has hardcoded `userId` and `projectId` constants. The frontend does not participate in the authentication flow yet. Use the API directly (curl, Swagger UI, or Postman) until frontend auth forms are implemented.
 
-Planned security controls include:
+---
 
-Authentication
-Role-Based Access Control
-API rate limiting
-Input validation
-Repository access controls
-Secret management
-Audit logging
-Secure worker isolation
-Dependency scanning
-Static Application Security Testing (SAST)
- Engineering Principles
+## Environment Variables
 
-DevPilot follows several engineering principles:
+All variables are read from `backend/.env` via pydantic-settings. The application will refuse to start if required variables are missing.
 
-Separation of Concerns
+```env
+# Required — PostgreSQL connection string
+DATABASE_URL=
 
-Frontend, API, workers, analysis engine, and persistence remain independently maintainable.
+# Required — secret used to sign and verify JWT tokens
+JWT_SECRET_KEY=
 
-API-First Design
+# Optional — defaults shown
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+AUTH_COOKIE_NAME=devpilot_token
+```
 
-Backend functionality is exposed through versionable APIs.
+---
 
-Asynchronous Processing
+## Authentication
 
-Long-running repository analysis should not block API requests.
+DevPilot uses stateless JWT authentication delivered via HttpOnly cookies.
 
-Database Migrations
+### Flow
 
-Schema changes are managed through Alembic migrations.
+```
+POST /api/auth/register  or  POST /api/auth/login
+             │
+             ▼
+    Argon2 password verification (pwdlib)
+             │
+             ▼
+    JWT signed with JWT_SECRET_KEY (HS256)
+    Payload: { sub: user_id, exp: now + JWT_ACCESS_TOKEN_EXPIRE_MINUTES }
+             │
+             ▼
+    Set-Cookie: devpilot_token=<token>
+    HttpOnly=true, SameSite=Lax, path=/
+             │
+             ▼
+    Subsequent requests: cookie read → JWT decoded → User loaded from DB
+```
 
-Containerized Infrastructure
+### Registration
 
-Development infrastructure is reproducible through Docker.
+- Email must be a valid address and is normalised to lowercase.
+- Password must be at least 8 characters.
+- Duplicate email addresses return `409 Conflict`.
+- On success, the auth cookie is set and the created user is returned.
 
-Observability
+### Login
 
-Future versions will include:
+- Accepts `email` + `password`.
+- Returns `401 Unauthorized` for any mismatch, with the same error message for both unknown email and wrong password (no user enumeration).
 
-Structured logging
-Metrics
-Distributed tracing
-Scan execution metrics
-Error tracking
+### Logout
 
+`POST /api/auth/logout` deletes the cookie. No server-side session is invalidated (stateless JWT).
 
-🗺️ Roadmap
-Phase 1 — Foundation
- Repository initialization
- Next.js frontend
- FastAPI backend
- PostgreSQL
- SQLAlchemy
- Alembic migrations
- User API
- Project API
- Repository API
- Scan API
+### Protected routes
 
-Phase 2 — Code Intelligence
- Repository cloning
- File discovery
- AST parsing
- Static analysis
- Security rules
- Code quality analysis
- Finding generation
+All Project, Repository, and Scan endpoints use a `get_current_user` FastAPI dependency. It:
 
-Phase 3 — AI Developer Copilot
- LLM integration
- Code explanations
- Root-cause analysis
- Fix suggestions
- Repository Q&A
- RAG pipeline
- Context-aware AI
+1. Reads the `devpilot_token` cookie.
+2. Decodes the JWT; raises `401` on expiry or invalid signature.
+3. Loads the `User` row; raises `401` if the user no longer exists.
 
-Phase 4 — Developer Experience
- Dashboard
- Scan history
- Finding explorer
- Code viewer
- Severity filters
- Risk trends
- Pull request reviews
+### Ownership checks
 
-Phase 5 — Production
- Authentication
- RBAC
- Redis
- Background workers
- GitHub OAuth
- GitHub webhooks
- CI/CD
- Observability
- Rate limiting
- Production deployment
+Every resource query additionally filters by the authenticated user's ownership chain (`user_id` on projects, project ownership on repositories, repository ownership on scans). A user cannot read, modify, or scan another user's resources.
 
+---
 
-Future Developer Workflow
+## API Reference
 
-Eventually, a developer will be able to:
-Connect GitHub
-      ↓
-Select Repository
-      ↓
-Start Scan
-      ↓
-DevPilot analyzes code
-      ↓
-AI understands findings
-      ↓
-Developer receives:
-      │
-      ├── Risk Score
-      ├── Security Issues
-      ├── Bugs
-      ├── Code Smells
-      ├── Performance Issues
-      └── AI Fix Suggestions
+All routes are prefixed with `/api`. Protected routes require the `devpilot_token` cookie.
 
+### Health
 
-Long-Term Goal
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/health` | No | Returns service name and version |
 
-DevPilot is being built toward an AI-native software engineering platform rather than a simple code scanner.
+### Authentication
 
-The long-term goal is to help developers move from:
-Write Code
-    ↓
-Find Problems
-    ↓
-Understand Problems
-    ↓
-Fix Problems
-    ↓
-Ship Software
-to:
-Write → Analyze → Understand → Fix → Review → Ship
-                         ↑
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/auth/register` | No | Create account; sets auth cookie |
+| `POST` | `/api/auth/login` | No | Authenticate; sets auth cookie |
+| `POST` | `/api/auth/logout` | No | Clears auth cookie |
+| `GET` | `/api/auth/me` | Yes | Returns the authenticated user |
 
+**Register request body:**
+```json
+{ "email": "dev@example.com", "name": "Alice", "password": "min8chars" }
+```
 
-     AI Copilot
+**Login request body:**
+```json
+{ "email": "dev@example.com", "password": "min8chars" }
+```
 
+**Response (register / login / me):**
+```json
+{ "id": "<uuid>", "email": "dev@example.com", "name": "Alice" }
+```
 
-Project Status
+### Users
 
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/users` | No | Legacy unauthenticated user creation (no password hashing) |
 
+> This endpoint predates the auth system. Prefer `/api/auth/register` for all new user creation.
 
-Status:  Active Development
+### Projects
 
-DevPilot is currently in the foundational backend/API stage.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/projects` | Yes | Create a project for the current user |
+| `GET` | `/api/projects` | Yes | List all projects owned by the current user |
+| `GET` | `/api/projects/{project_id}` | Yes | Get a single owned project |
 
-The architecture is intentionally designed to evolve from a simple CRUD-based backend into a distributed code intelligence platform with asynchronous analysis and AI-powered developer workflows.
+**Create request body:**
+```json
+{ "name": "my-project" }
+```
 
+### Repositories
 
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/repositories` | Yes | Register a repository under an owned project |
+| `GET` | `/api/repositories?project_id=<id>` | Yes | List repositories in an owned project |
+| `GET` | `/api/repositories/{repository_id}` | Yes | Get a single owned repository |
 
- Author
+**Create request body:**
+```json
+{
+  "name": "my-repo",
+  "url": "https://github.com/example/my-repo",
+  "project_id": "<project-uuid>"
+}
+```
 
-MD Rahil
+> The `url` field is stored for reference only. DevPilot does not clone repositories.
 
-B.Tech Computer Science & Engineering
+### Scans
 
-Building toward AI-powered developer tools and intelligent software engineering systems.
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/scans` | Yes | Start a scan; returns immediately while analysis runs in background |
+| `GET` | `/api/scans?repository_id=<id>` | Yes | List scans for an owned repository |
+| `GET` | `/api/scans/{scan_id}` | Yes | Get scan status and timestamps |
+| `GET` | `/api/scans/{scan_id}/summary` | Yes | Per-severity finding counts |
+| `GET` | `/api/scans/{scan_id}/findings` | Yes | Full finding list |
 
+**Create request body:**
+```json
+{
+  "repository_id": "<repository-uuid>",
+  "repository_path": "/absolute/path/to/local/code"
+}
+```
 
+> `repository_path` must be an absolute path to a directory that already exists on the machine running the backend.
 
+**Scan status values:** `pending` · `running` · `completed` · `failed`
 
-⭐ Why DevPilot?
+**Summary response:**
+```json
+{
+  "scan_id": "<uuid>",
+  "status": "completed",
+  "total_findings": 12,
+  "high": 1,
+  "medium": 3,
+  "low": 5,
+  "info": 3
+}
+```
 
-DevPilot demonstrates practical engineering across:
+---
 
-Full-stack development
-REST API design
-Database architecture
-PostgreSQL
-SQLAlchemy
-Database migrations
-Docker
-Distributed systems
-Static code analysis
-AI engineering
-Developer tooling
-Software architecture
-Production engineering
+## Database
 
+### Technology
 
-📜 License
-License will be added as the project matures.
+PostgreSQL 16, accessed via SQLAlchemy 2.0 ORM with the psycopg 3 binary driver. Schema changes are managed with Alembic.
+
+### Models and relationships
+
+```
+users
+  id (PK, UUID string)
+  email (unique, indexed)
+  name
+  password_hash
+  created_at
+   │
+   └── projects  (ON DELETE CASCADE)
+         id, name, user_id, created_at
+          │
+          └── repositories  (ON DELETE CASCADE)
+                id, name, url, project_id, created_at
+                 │
+                 └── scans  (ON DELETE CASCADE)
+                       id, repository_id, status
+                       started_at, completed_at
+                        │
+                        └── findings  (ON DELETE CASCADE)
+                              id, scan_id, severity
+                              title, description
+                              file_path, line_number
+```
+
+Cascade deletes propagate the full chain: deleting a user removes all their projects, repositories, scans, and findings.
+
+### ER diagram
+
+```mermaid
+erDiagram
+    users {
+        string id PK
+        string email
+        string name
+        string password_hash
+        datetime created_at
+    }
+    projects {
+        string id PK
+        string name
+        string user_id FK
+        datetime created_at
+    }
+    repositories {
+        string id PK
+        string name
+        string url
+        string project_id FK
+        datetime created_at
+    }
+    scans {
+        string id PK
+        string repository_id FK
+        string status
+        datetime started_at
+        datetime completed_at
+    }
+    findings {
+        string id PK
+        string scan_id FK
+        string severity
+        string title
+        text description
+        string file_path
+        int line_number
+    }
+
+    users ||--o{ projects : "owns"
+    projects ||--o{ repositories : "contains"
+    repositories ||--o{ scans : "has"
+    scans ||--o{ findings : "produces"
+```
+
+### Migrations
+
+Three migration scripts are applied in order:
+
+| Revision | Description |
+|----------|-------------|
+| `4209f5ec67e9` | Create initial schema (users, projects, repositories, scans, findings) |
+| `59e12d3fce6f` | Empty placeholder (no schema changes) |
+| `02914dbc1623` | Add `password_hash` column to `users` |
+
+> Alembic reads `sqlalchemy.url` directly from `alembic.ini`, not from `backend/.env`. Keep the two in sync when changing database credentials.
+
+---
+
+## Scan Engine
+
+### How a scan works
+
+1. `POST /api/scans` validates that the requested repository belongs to the current user.
+2. A `Scan` row is created with `status="pending"` and committed.
+3. The HTTP response (`201 Created`) is returned immediately.
+4. FastAPI's `BackgroundTask` invokes `run_scan_background()` in a fresh database session.
+5. `ScanEngine.run()` validates the path, sets `status="running"`, and calls `analyze_repository()`.
+6. `analyze_repository()` calls `Path.rglob("*")` and passes each eligible file to `analyze_file()`.
+7. Each `FindingResult` is persisted as a `Finding` row.
+8. On success the scan transitions to `"completed"`; on any exception it transitions to `"failed"`.
+
+### Static analysis rules
+
+| Severity | Rule | Applies to |
+|----------|------|------------|
+| `high` | Possible hardcoded secret — variable named `API_KEY`, `SECRET_KEY`, `ACCESS_TOKEN`, or `PASSWORD` assigned a string literal | All supported extensions |
+| `medium` | Broad exception handling — `except Exception:` | `.py` only |
+| `low` | Debug print statement — `print(...)` | `.py` only |
+| `info` | Unfinished work marker — `TODO` or `FIXME` in any comment or line | All supported extensions |
+
+All rules are regex-based and operate line-by-line. There is no AST parsing or cross-file analysis.
+
+### Supported file extensions
+
+`.py` `.js` `.jsx` `.ts` `.tsx` `.java` `.go` `.rs` `.php` `.rb` `.cpp` `.c` `.h` `.hpp`
+
+### Skipped directories
+
+`.git` `.venv` `venv` `node_modules` `__pycache__` `.next` `dist` `build`
+
+---
+
+## Development
+
+### Backend
+
+```bash
+# Start the API with hot reload
+cd backend
+source .venv/bin/activate
+uvicorn main:app --reload --port 8000
+
+# Apply all pending migrations
+alembic upgrade head
+
+# Generate a new migration after changing models
+alembic revision --autogenerate -m "describe the change"
+
+# Downgrade one revision
+alembic downgrade -1
+```
+
+### Frontend
+
+```bash
+cd frontend
+
+# Development server with hot reload
+npm run dev
+
+# Production build
+npm run build
+
+# Lint (ESLint with Next.js config)
+npm run lint
+```
+
+> TypeScript type checking runs as part of `npm run build`. There is no separate `tsc` script in `package.json`.
+
+### Testing
+
+No automated test suite exists. The `tests/` directory is empty. Manual verification is currently done through the Swagger UI at `http://127.0.0.1:8000/docs` or with curl.
+
+---
+
+## API Examples
+
+The examples below use `--cookie-jar` and `--cookie` to persist the session cookie across requests. Replace placeholder values (`<...>`) with actual UUIDs returned by the API.
+
+**Register**
+```bash
+curl -s -c cookies.txt -X POST http://127.0.0.1:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "dev@example.com", "name": "Alice", "password": "securepassword"}'
+```
+
+**Login**
+```bash
+curl -s -c cookies.txt -X POST http://127.0.0.1:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "dev@example.com", "password": "securepassword"}'
+```
+
+**Get current user**
+```bash
+curl -s -b cookies.txt http://127.0.0.1:8000/api/auth/me
+```
+
+**Create a project**
+```bash
+curl -s -b cookies.txt -X POST http://127.0.0.1:8000/api/projects \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-project"}'
+```
+
+**Register a repository**
+```bash
+curl -s -b cookies.txt -X POST http://127.0.0.1:8000/api/repositories \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-repo",
+    "url": "https://github.com/example/my-repo",
+    "project_id": "<project-uuid>"
+  }'
+```
+
+**Start a scan**
+```bash
+curl -s -b cookies.txt -X POST http://127.0.0.1:8000/api/scans \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repository_id": "<repository-uuid>",
+    "repository_path": "/absolute/path/to/local/code"
+  }'
+```
+
+**Poll scan status**
+```bash
+curl -s -b cookies.txt http://127.0.0.1:8000/api/scans/<scan-uuid>
+```
+
+**Get scan summary**
+```bash
+curl -s -b cookies.txt http://127.0.0.1:8000/api/scans/<scan-uuid>/summary
+```
+
+**Get findings**
+```bash
+curl -s -b cookies.txt http://127.0.0.1:8000/api/scans/<scan-uuid>/findings
+```
+
+---
+
+## Security
+
+### What is implemented
+
+| Practice | Detail |
+|----------|--------|
+| Password hashing | Argon2 via pwdlib — passwords are never stored in plaintext |
+| JWT authentication | HS256-signed tokens with configurable expiry; secret loaded from environment |
+| HttpOnly cookies | The `devpilot_token` cookie is inaccessible to JavaScript |
+| Ownership enforcement | Every query filters by the authenticated user's ownership chain; no resource is returned unless it belongs to the requester |
+| Input validation | Pydantic validates all request bodies; email addresses are validated with `email-validator` |
+| Environment-based secrets | `JWT_SECRET_KEY` and `DATABASE_URL` are read from `.env`, not hardcoded |
+
+### Known gaps
+
+- `secure=False` on the auth cookie — appropriate for local HTTP development, must be set to `True` behind HTTPS in production.
+- No rate limiting on authentication endpoints.
+- `alembic.ini` contains a hardcoded database URL with development credentials. Do not use these credentials in production.
+- The legacy `POST /api/users` endpoint creates users without password hashing and requires no authentication.
+
+---
+
+## Error Handling
+
+| Status | When it occurs |
+|--------|---------------|
+| `400 Bad Request` | Password shorter than 8 characters |
+| `401 Unauthorized` | Missing cookie, expired JWT, invalid signature, or user not found |
+| `404 Not Found` | Requested resource does not exist or does not belong to the current user |
+| `409 Conflict` | Registration with an email address that already exists |
+| `422 Unprocessable Entity` | Pydantic validation failure (missing fields, wrong types, invalid email) |
+
+---
+
+## Testing
+
+No automated tests are currently implemented. The `tests/` directory is present but empty.
+
+Manual testing options:
+- **Swagger UI** — `http://127.0.0.1:8000/docs` provides an interactive interface for all endpoints.
+- **curl** — see the [API Examples](#api-examples) section above.
+- **Redoc** — `http://127.0.0.1:8000/redoc` for read-only API documentation.
+
+---
+
+## Roadmap
+
+**Phase 1 — Foundation** ✅ Complete
+- FastAPI backend, PostgreSQL, SQLAlchemy 2.0, Alembic
+- JWT authentication with HttpOnly cookies
+- Projects, Repositories, Scans, Findings REST API
+- Regex-based static analysis scan engine
+- Next.js prototype dashboard
+
+**Phase 2 — Repository Integration** ⬜ Planned
+- Automatic repository cloning from URL
+- Temporary workspace isolation per scan
+- GitHub URL validation
+
+**Phase 3 — Frontend** ⬜ Planned
+- Authentication UI (register / login / logout)
+- Full page routing — projects, repositories, scans, findings
+- Finding detail view with file and line context
+- Severity filtering and scan history
+
+**Phase 4 — Analysis Depth** ⬜ Planned
+- AST-based analysis
+- Expanded rule sets (security, performance, maintainability)
+- Cross-file dependency analysis
+
+**Phase 5 — AI Integration** ⬜ Planned
+- LLM-powered finding explanations
+- Fix suggestions per finding
+
+**Phase 6 — Production Hardiness** ⬜ Planned
+- Redis + Celery background workers
+- GitHub OAuth and webhooks
+- RBAC and team workspaces
+- Rate limiting
+- Structured logging, metrics, tracing
+- CI/CD pipelines
+
+---
+
+## Contributing
+
+1. Fork the repository and create a feature branch from `main`:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. Make your changes. For backend changes, ensure the app starts and basic flows work via Swagger UI. For frontend changes, verify `npm run build` and `npm run lint` pass without errors.
+
+3. Keep commits focused. One logical change per commit with a clear message:
+   ```
+   feat: add severity filter query param to findings endpoint
+   fix: return 404 instead of 500 when repository path is missing
+   ```
+
+4. If you add or change a database model, generate a migration:
+   ```bash
+   cd backend
+   alembic revision --autogenerate -m "describe the change"
+   ```
+
+5. Open a pull request against `main`. Describe what changed, why, and how to test it.
+
+---
+
+## License
+
+License information has not yet been added to this repository.
+
+---
+
+## Project Status
+
+DevPilot is in active early development. The backend API is functional — authentication, resource management, and the scan engine all work end to end. The frontend is a working prototype with hardcoded identifiers; it demonstrates the scan workflow but is not yet connected to the authentication system. There are no automated tests and no production deployment configuration. The project is suitable for local development and learning, not production use.
