@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     AUTH_COOKIE_NAME: str = "devpilot_token"
 
+    # GitHub cloning
+    GIT_CLONE_TIMEOUT_SECONDS: int = 120
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

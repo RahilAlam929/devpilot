@@ -20,7 +20,6 @@ type State = {
   activeFindings: Finding[];
   showFindings: boolean;
   // Scan trigger
-  scanPath: string;
   scanning: boolean;
   // Load states
   projectsState: "idle" | "loading" | "done" | "error";
@@ -41,7 +40,6 @@ type Action =
   | { type: "SCANS_LOADING" }
   | { type: "SCANS_OK"; scans: Scan[] }
   | { type: "SCANS_ERR"; message: string }
-  | { type: "SET_SCAN_PATH"; path: string }
   | { type: "SCAN_START" }
   | { type: "SCAN_CREATED"; scan: Scan }
   | { type: "SCAN_UPDATED"; scans: Scan[] }
@@ -63,7 +61,6 @@ const init: State = {
   activeSummary: null,
   activeFindings: [],
   showFindings: false,
-  scanPath: "/tmp/devpilot-scan-test",
   scanning: false,
   projectsState: "idle",
   reposState: "idle",
@@ -100,7 +97,6 @@ function reducer(s: State, a: Action): State {
     case "SCANS_LOADING": return { ...s, scansState: "loading" };
     case "SCANS_OK": return { ...s, scansState: "done", scanList: a.scans };
     case "SCANS_ERR": return { ...s, scansState: "error", error: a.message };
-    case "SET_SCAN_PATH": return { ...s, scanPath: a.path };
     case "SCAN_START": return { ...s, scanning: true, error: null, activeSummary: null, activeFindings: [], showFindings: false };
     case "SCAN_CREATED": return { ...s, activeScanId: a.scan.id, scanList: [a.scan, ...s.scanList] };
     case "SCAN_UPDATED": return { ...s, scanList: a.scans };
@@ -130,7 +126,7 @@ function ScansContent() {
   const {
     projects, repos, scanList, selectedProjectId, selectedRepoId,
     activeScanId, activeSummary, activeFindings, showFindings,
-    scanPath, scanning, projectsState, reposState, scansState, error,
+    scanning, projectsState, reposState, scansState, error,
   } = state;
 
   const searchParams = useSearchParams();
@@ -243,12 +239,11 @@ function ScansContent() {
 
   function runScan() {
     if (!selectedRepoId) { dispatch({ type: "SET_ERROR", message: "Please select a repository." }); return; }
-    if (!scanPath.trim()) { dispatch({ type: "SET_ERROR", message: "Please enter a local path to scan." }); return; }
 
     if (pollingRef.current) clearTimeout(pollingRef.current);
     dispatch({ type: "SCAN_START" });
 
-    scansApi.create(selectedRepoId, scanPath.trim())
+    scansApi.create(selectedRepoId)
       .then((scan) => {
         dispatch({ type: "SCAN_CREATED", scan });
         pollFnRef.current(scan.id);
@@ -339,15 +334,6 @@ function ScansContent() {
           </div>
 
           <div className="scan-controls">
-            <label>
-              <span>Local repository path</span>
-              <input
-                value={scanPath}
-                onChange={(e) => dispatch({ type: "SET_SCAN_PATH", path: e.target.value })}
-                placeholder="/absolute/path/to/local/code"
-                disabled={scanning}
-              />
-            </label>
             <button
               className="primary-button"
               onClick={runScan}

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.auth import get_current_user
 from app.database import SessionLocal
 from app.models import Project, Repository, User
+from app.services.github import GitHubURLValidationError, validate_github_url
 
 
 router = APIRouter(
@@ -64,9 +65,18 @@ def create_repository(
             detail="Project not found",
         )
 
+    # Validate and normalise the URL before storing it.
+    try:
+        canonical_url = validate_github_url(repository_data.url)
+    except GitHubURLValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        )
+
     repository = Repository(
         name=repository_data.name,
-        url=repository_data.url,
+        url=canonical_url,
         project_id=project.id,
     )
 

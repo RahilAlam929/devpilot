@@ -9,7 +9,6 @@ type ScanState = {
   scanList: Scan[];
   summary: ScanSummary | null;
   findings: Finding[];
-  scanPath: string;
   scanning: boolean;
   activeScanId: string | null;
   loadingScans: boolean;
@@ -20,7 +19,6 @@ type ScanState = {
 type ScanAction =
   | { type: "LOAD_SCANS_OK"; scans: Scan[]; summary: ScanSummary | null }
   | { type: "REPO_CHANGED" }
-  | { type: "SET_SCAN_PATH"; path: string }
   | { type: "SCAN_START" }
   | { type: "SCAN_CREATED"; scan: Scan }
   | { type: "SCAN_UPDATED"; scans: Scan[]; summary: ScanSummary }
@@ -36,7 +34,6 @@ const initialState: ScanState = {
   scanList: [],
   summary: null,
   findings: [],
-  scanPath: "/tmp/devpilot-scan-test",
   scanning: false,
   activeScanId: null,
   loadingScans: false,
@@ -60,8 +57,6 @@ function scanReducer(state: ScanState, action: ScanAction): ScanState {
       };
     case "LOAD_SCANS_OK":
       return { ...state, loadingScans: false, scanList: action.scans, summary: action.summary };
-    case "SET_SCAN_PATH":
-      return { ...state, scanPath: action.path };
     case "SCAN_START":
       return { ...state, scanning: true, error: null, summary: null, findings: [] };
     case "SCAN_CREATED":
@@ -106,7 +101,7 @@ interface ScanPanelProps {
 export default function ScanPanel({ repositoryId, repositories }: ScanPanelProps) {
   const [state, dispatch] = useReducer(scanReducer, initialState);
   const {
-    scanList, summary, findings, scanPath,
+    scanList, summary, findings,
     scanning, activeScanId, loadingScans, error, showFindings,
   } = state;
 
@@ -212,16 +207,12 @@ export default function ScanPanel({ repositoryId, repositories }: ScanPanelProps
       dispatch({ type: "SET_ERROR", message: "Please select a repository." });
       return;
     }
-    if (!scanPath.trim()) {
-      dispatch({ type: "SET_ERROR", message: "Please enter a path to scan." });
-      return;
-    }
 
     if (pollingRef.current) clearTimeout(pollingRef.current);
 
     dispatch({ type: "SCAN_START" });
 
-    scansApi.create(repositoryId, scanPath.trim())
+    scansApi.create(repositoryId)
       .then((scan) => {
         dispatch({ type: "SCAN_CREATED", scan });
         pollFnRef.current(scan.id);
@@ -257,15 +248,6 @@ export default function ScanPanel({ repositoryId, repositories }: ScanPanelProps
         </div>
 
         <div className="scan-controls">
-          <label>
-            <span>Scan path</span>
-            <input
-              value={scanPath}
-              onChange={(e) => dispatch({ type: "SET_SCAN_PATH", path: e.target.value })}
-              placeholder="/absolute/path/to/repository"
-              disabled={scanning}
-            />
-          </label>
           <button
             className="primary-button"
             onClick={runScan}

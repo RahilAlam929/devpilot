@@ -180,12 +180,11 @@ export const scans = {
     );
   },
 
-  create(repositoryId: string, repositoryPath: string): Promise<Scan> {
+  create(repositoryId: string): Promise<Scan> {
     return request<Scan>("/api/scans", {
       method: "POST",
       body: JSON.stringify({
         repository_id: repositoryId,
-        repository_path: repositoryPath,
       }),
     });
   },

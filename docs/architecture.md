@@ -25,58 +25,78 @@ DevPilot follows a modular architecture designed to separate the frontend, API l
 │ Scans                │
 └──────────┬───────────┘
            │
-     ┌─────┴─────┐
-     ▼           ▼
-┌──────────┐ ┌────────────────┐
-│PostgreSQL│ │  Scan Engine   │
-│ Database │ │ Code Analysis  │
-└──────────┘ └───────┬────────┘
-                     │
-                     ▼
-              ┌──────────────┐
-              │   Findings   │
-              └──────────────┘
-Frontend
+     ┌─────┴──────────────┐
+     ▼                    ▼
+┌──────────┐  ┌────────────────────────┐
+│PostgreSQL│  │  GitHub Clone Service  │
+│ Database │  │  + Scan Engine         │
+└──────────┘  └───────────┬────────────┘
+                          │
+                          ▼
+                   ┌──────────────┐
+                   │   Findings   │
+                   └──────────────┘
+```
+
+## Frontend
 
 The frontend is responsible for:
 
-User interface
-Authentication screens
-Dashboard
-Project management
-Repository management
-Scan controls
-Findings visualization
+- User interface
+- Authentication screens
+- Dashboard
+- Project management
+- Repository management
+- Scan controls
+- Findings visualization
+
 Technology:
 
-Next.js
-React
-TypeScript
-Tailwind CSS
-Backend
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
+
+## Backend
 
 The backend is built with FastAPI.
 
-Main API modules
+### Main API modules
+```
 backend/app/api/
 ├── auth.py
 ├── users.py
 ├── projects.py
 ├── repositories.py
 └── scans.py
+```
+
 The API layer handles:
 
-HTTP requests
-Authentication
-Authorization
-Request validation
-Database operations
-Scan orchestration
-Authentication
+- HTTP requests
+- Authentication
+- Authorization
+- Request validation
+- Database operations
+- Scan orchestration (clone → analyze → store findings)
+
+### Services
+```
+backend/app/services/
+├── github/
+│   ├── __init__.py
+│   └── repository.py      # URL validation + secure cloning
+└── scan_engine/
+    ├── engine.py           # ScanEngine orchestrator
+    └── analyzers.py        # Static code analysis
+```
+
+## Authentication
 
 DevPilot uses JWT-based authentication.
 
 The authentication flow is:
+```
 Register/Login
       │
       ▼
@@ -90,113 +110,141 @@ HttpOnly cookie
       │
       ▼
 Authenticated API request
+```
+
 Protected resources verify both:
 
-The user is authenticated.
-The requested resource belongs to that user.
-Database
+- The user is authenticated.
+- The requested resource belongs to that user.
+
+## Database
 
 PostgreSQL stores the application's persistent data.
 
-The ORM layer uses SQLAlchemy.
+The ORM layer uses SQLAlchemy. Database schema changes are managed with Alembic migrations.
 
-Database schema changes are managed with Alembic migrations.
-
-Core entities include:
+Core entities:
+```
 User
- │
  └── Project
-       │
-       └── Repository
-             │
+       └── Repository  (stores validated GitHub HTTPS URL)
              └── Scan
-                   │
                    └── Finding
-Project Ownership
+```
 
-Every project belongs to a user.
+### Project Ownership
 
-Repositories belong to projects.
+Every project belongs to a user. Repositories belong to projects. Scans belong to repositories. Access follows the ownership chain — an authenticated user cannot access another user's project, repository, scan, or finding.
 
-Scans belong to repositories.
+## GitHub Repository Service
 
-Therefore access follows the ownership chain:
-User
- ↓
-Project
- ↓
-Repository
- ↓
-Scan
- ↓
-Finding
-An authenticated user cannot access another user's project, repository, or scan.
+The `app/services/github/repository.py` module handles secure repository access.
 
-Scan Engine
+### URL Validation (`validate_github_url`)
 
-The scan engine is responsible for analyzing repository contents.
+Accepts only GitHub HTTPS URLs of the form:
+```
+https://github.com/<owner>/<repo>
+https://github.com/<owner>/<repo>.git
+```
 
-Current architecture:
-Repository
-    │
-    ▼
-Scan Request
-    │
-    ▼
-Background Task
-    │
-    ▼
-Scan Engine
-    │
-    ├── Code Analysis
-    ├── Issue Detection
-    └── Finding Generation
-             │
-             ▼
-          Database
-Future GitHub Integration
+Explicitly rejects:
+- HTTP (plain-text) URLs
+- `git://`, `ssh://`, `file://` and other schemes
+- SSH shorthand (`git@github.com:...`)
+- All non-`github.com` hosts (GitLab, Bitbucket, localhost, private IPs)
+- Embedded credentials (`user:pass@...`)
+- Non-standard ports
+- Query strings and fragments
+- Local or relative paths
 
-The planned repository workflow is
-GitHub URL
-    │
-    ▼
-Validate Repository
-    │
-    ▼
-Clone Repository
-    │
-    ▼
-Temporary Workspace
-    │
-    ▼
-Run Scan
-    │
-    ▼
-Store Findings
-    │
-    ▼
-Display Results
-Temporary workspaces will isolate repository scanning from the main application environment.
+Returns the canonical `.git` form on success.
+Raises `GitHubURLValidationError` on failure.
 
-Design Principles
+### Secure Cloning (`clone_repository`)
 
-DevPilot follows these principles:
+A context manager that:
 
-Separation of Concerns
+1. Creates an isolated `tempfile.mkdtemp()` workspace.
+2. Runs `git clone --depth 1 -- <url> <dest>` via `subprocess.run` with:
+   - An argument array (never `shell=True`)
+   - `GIT_TERMINAL_PROMPT=0` to prevent interactive prompts
+   - Configurable timeout (default 120 seconds)
+3. Yields the cloned path to the caller.
+4. **Always** deletes the workspace on exit — including on exception and timeout.
 
-Authentication, API routes, database models, and scanning logic remain separated.
+```python
+with clone_repository(url, timeout=120) as repo_path:
+    # repo_path is a Path to the cloned tree
+    run_analysis(repo_path)
+# workspace is deleted here, even if an exception occurred
+```
 
-Secure by Default
+Raises `GitCloneTimeoutError` on timeout, `GitCloneError` on other clone failures. Error messages are user-safe and never leak internal paths.
 
-Protected resources require authentication and ownership validation.
+## Scan Workflow
 
-Stateless Authentication
+```
+POST /api/scans  { repository_id }
+        │
+        ▼
+  Verify ownership
+        │
+        ▼
+  Validate stored URL (422 if invalid)
+        │
+        ▼
+  Create Scan (status = pending)
+        │
+        ▼
+  Return 201 immediately
+        │
+        ▼ (background task)
+  clone_repository(url, timeout)
+        │
+        ▼
+  status = running
+        │
+        ▼
+  ScanEngine.run(cloned_path)
+        │
+        ├── completed → store findings
+        └── failed    → mark scan failed
+              │
+              ▼ (always)
+        Delete temp directory
+```
 
-JWT access tokens allow the API to authenticate requests without maintaining server-side sessions.
-Background Processing
+The client sends only `repository_id`. The backend retrieves the stored (validated) URL. The frontend never sends or sees repository paths.
 
-Repository scans are executed as background tasks so API requests are not blocked by long-running analysis.
+## Scan Engine
 
-Incremental Architecture
+`ScanEngine` in `app/services/scan_engine/engine.py` is unchanged from Phase 2. It runs static code analysis via `analyzers.py`, which scans supported file extensions for:
 
-New analysis engines, GitHub providers, AI models, and integrations can be added without rewriting the core API.
+- TODO/FIXME markers (info)
+- Debug `print()` statements in Python (low)
+- Broad `except Exception` handling (medium)
+- Possible hardcoded secrets (`API_KEY`, `SECRET_KEY`, etc.) (high)
+
+## Design Principles
+
+**Separation of Concerns**
+Authentication, API routes, database models, URL validation, cloning, and scanning logic remain separated.
+
+**Secure by Default**
+Protected resources require authentication and ownership validation. Only GitHub HTTPS URLs are accepted. Cloning uses argument arrays, never shell interpolation.
+
+**No Local Paths from Clients**
+The frontend never sends local paths. All repository access is via stored GitHub URLs resolved by the backend.
+
+**Guaranteed Cleanup**
+Temporary clone directories are always deleted, even on failure, using a context manager that runs in the `finally` block.
+
+**Stateless Authentication**
+JWT access tokens allow the API to authenticate requests without server-side sessions.
+
+**Background Processing**
+Repository scans are executed as background tasks so API requests are not blocked.
+
+**Incremental Architecture**
+New analysis engines, additional host providers, and integrations can be added without rewriting the core API.
