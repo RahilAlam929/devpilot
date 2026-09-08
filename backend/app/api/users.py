@@ -1,49 +1,14 @@
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-from typing import Optional
-from sqlalchemy.orm import Session
+"""
+User management endpoints.
 
-from app.database import SessionLocal
-from app.models import User
+Note: user registration and authentication are handled by /api/auth/*.
+This router is reserved for future user-management features (profile update,
+account deletion, etc.) that require authentication.
+"""
+from fastapi import APIRouter
 
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-class UserCreate(BaseModel):
-    email: str
-    name: Optional[str] = None
-
-
-class UserResponse(BaseModel):
-    id: str
-    email: str
-    name: Optional[str]
-
-    class Config:
-        from_attributes = True
-
-
-@router.post("", response_model=UserResponse, status_code=201)
-def create_user(
-    user_data: UserCreate,
-    db: Session = Depends(get_db),
-):
-    user = User(
-        email=user_data.email,
-        name=user_data.name,
-    )
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    return user
+# No unauthenticated endpoints are exposed here.
+# See /api/auth/register for account creation and /api/auth/me for profile.
