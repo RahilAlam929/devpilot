@@ -291,11 +291,39 @@ export default function ScanPanel({ repositoryId, repositories }: ScanPanelProps
                 <span>total findings</span>
               </div>
               <div className="severity-list">
+                {summary.critical > 0 && (
+                  <SeverityRow label="Critical" value={summary.critical} className="severity-critical" />
+                )}
                 <SeverityRow label="High" value={summary.high} className="severity-high" />
                 <SeverityRow label="Medium" value={summary.medium} className="severity-medium" />
                 <SeverityRow label="Low" value={summary.low} className="severity-low" />
                 <SeverityRow label="Info" value={summary.info} className="severity-info" />
               </div>
+              {/* Phase 5 meta-counts */}
+              {(summary.security_findings > 0 || summary.quality_findings > 0) && (
+                <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--border)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                  {summary.security_findings > 0 && (
+                    <span style={{ fontSize: "0.75rem", color: "#e8553a" }}>
+                      🔒 {summary.security_findings} security
+                    </span>
+                  )}
+                  {summary.quality_findings > 0 && (
+                    <span style={{ fontSize: "0.75rem", color: "#5588bb" }}>
+                      ✦ {summary.quality_findings} quality
+                    </span>
+                  )}
+                  {summary.high_confidence_findings > 0 && (
+                    <span style={{ fontSize: "0.75rem", color: "#6b9e6b" }}>
+                      ★ {summary.high_confidence_findings} high confidence
+                    </span>
+                  )}
+                  {summary.fixable_findings > 0 && (
+                    <span style={{ fontSize: "0.75rem", color: "#9b7fd4" }}>
+                      ⚡ {summary.fixable_findings} with patch
+                    </span>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="empty-state">
@@ -404,6 +432,14 @@ export default function ScanPanel({ repositoryId, repositories }: ScanPanelProps
                       ? `${finding.file_path}${finding.line_number ? `:${finding.line_number}` : ""}`
                       : finding.description}
                   </span>
+                  {finding.cwe && (
+                    <span style={{ fontSize: "0.72rem", marginLeft: "6px", opacity: 0.7 }}>{finding.cwe}</span>
+                  )}
+                  {finding.confidence != null && (
+                    <span style={{ fontSize: "0.72rem", marginLeft: "6px", opacity: 0.7 }}>
+                      {finding.confidence}% confidence
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

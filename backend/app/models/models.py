@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -162,8 +162,18 @@ class Scan(Base):
 
 
 class Finding(Base):
+    """
+    Persisted finding from a scan.
+
+    Phase 5 adds rich metadata columns. All new columns are nullable
+    so existing data and the test suite remain compatible.
+    Old columns (severity, title, description, file_path, line_number)
+    are unchanged.
+    """
+
     __tablename__ = "findings"
 
+    # ── Core (original columns — never removed) ───────────────────────────
     id: Mapped[str] = mapped_column(
         String(36),
         primary_key=True,
@@ -196,9 +206,126 @@ class Finding(Base):
     )
 
     line_number: Mapped[Optional[int]] = mapped_column(
+        Integer,
         nullable=True,
     )
 
+    # ── Phase 5 additions (all nullable for backward compat) ──────────────
+
+    rule_id: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    category: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    # Location detail
+    column_number: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    end_line: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    code_snippet: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # Risk metadata
+    cwe: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    language: Mapped[Optional[str]] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    analyzer: Mapped[Optional[str]] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    # Confidence
+    confidence: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    confidence_level: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+    )
+
+    # Developer explanation (stored as Text blobs)
+    why_risky: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    impact: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    remediation: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    fix_example: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # Source → Sink (stored as JSON text)
+    source_label: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    sink_label: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    data_flow_text: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    evidence: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # Patch
+    patch_available: Mapped[Optional[bool]] = mapped_column(
+        nullable=True,
+        default=False,
+    )
+
+    patch_text: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # Deduplication
+    fingerprint: Mapped[Optional[str]] = mapped_column(
+        String(32),
+        nullable=True,
+        index=True,
+    )
+
+    # ── Relationship ──────────────────────────────────────────────────────
     scan: Mapped["Scan"] = relationship(
         back_populates="findings",
     )

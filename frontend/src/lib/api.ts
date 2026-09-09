@@ -41,20 +41,58 @@ export interface ScanSummary {
   scan_id: string;
   status: string;
   total_findings: number;
+  // Original severity counts
   high: number;
   medium: number;
   low: number;
   info: number;
+  // Phase 5 additions
+  critical: number;
+  security_findings: number;
+  quality_findings: number;
+  high_confidence_findings: number;
+  fixable_findings: number;
+}
+
+export interface PatchInfo {
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  original: string;
+  replacement: string;
+  reason: string;
 }
 
 export interface Finding {
   id: string;
   scan_id: string;
-  severity: "high" | "medium" | "low" | "info";
+  severity: "critical" | "high" | "medium" | "low" | "info";
   title: string;
   description: string;
   file_path: string | null;
   line_number: number | null;
+  // Phase 5 fields (all optional for backward compat)
+  rule_id?: string | null;
+  category?: string | null;
+  column_number?: number | null;
+  end_line?: number | null;
+  code_snippet?: string | null;
+  cwe?: string | null;
+  language?: string | null;
+  analyzer?: string | null;
+  confidence?: number | null;
+  confidence_level?: "high" | "medium" | "low" | null;
+  why_risky?: string | null;
+  impact?: string | null;
+  remediation?: string | null;
+  fix_example?: string | null;
+  source_label?: string | null;
+  sink_label?: string | null;
+  data_flow_text?: string | null;
+  evidence?: string | null;
+  patch_available?: boolean | null;
+  patch?: PatchInfo | null;
+  fingerprint?: string | null;
 }
 
 // ─── Error type ────────────────────────────────────────────────────────────
@@ -199,9 +237,13 @@ export const scans = {
     );
   },
 
-  findings(scanId: string): Promise<Finding[]> {
+  findings(scanId: string, severity?: string, category?: string): Promise<Finding[]> {
+    const params = new URLSearchParams();
+    if (severity) params.set("severity", severity);
+    if (category) params.set("category", category);
+    const qs = params.toString();
     return request<Finding[]>(
-      `/api/scans/${encodeURIComponent(scanId)}/findings`,
+      `/api/scans/${encodeURIComponent(scanId)}/findings${qs ? `?${qs}` : ""}`,
     );
   },
 };
