@@ -551,6 +551,7 @@ def list_findings(
     scan_id: str,
     severity: Optional[str] = None,
     category: Optional[str] = None,
+    group: Optional[str] = None,
     analyzer: Optional[str] = None,
     confidence_min: Optional[int] = None,
     current_user: User = Depends(get_current_user),
@@ -561,7 +562,10 @@ def list_findings(
 
     Optional query params:
       severity       — filter by severity (critical|high|medium|low|info)
-      category       — filter by category (e.g. command_injection)
+      category       — filter by specific category name (e.g. command_injection)
+      group          — filter by category group: "security" or "quality"
+                       security = categories in SECURITY_CATS set
+                       quality  = all other categories
       analyzer       — filter by analyzer (sca|secret_scanner|iac|ast|dataflow|regex)
       confidence_min — minimum confidence threshold (0-100)
     """
@@ -573,6 +577,19 @@ def list_findings(
         query = query.filter(Finding.severity == severity)
     if category:
         query = query.filter(Finding.category == category)
+    if group:
+        # Security categories — must match SECURITY_CATS in get_scan_summary
+        SECURITY_CATS = {
+            "code_execution", "command_injection", "xss", "sql_injection",
+            "path_traversal", "ssrf", "open_redirect", "deserialization",
+            "secrets", "crypto", "template_injection", "configuration", "data_flow",
+        }
+        if group == "security":
+            query = query.filter(Finding.category.in_(SECURITY_CATS))
+        elif group == "quality":
+            query = query.filter(
+                (Finding.category == None) | (~Finding.category.in_(SECURITY_CATS))
+            )
     if analyzer:
         query = query.filter(Finding.analyzer == analyzer)
     if confidence_min is not None:

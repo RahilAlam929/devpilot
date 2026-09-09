@@ -237,10 +237,16 @@ export const scans = {
     );
   },
 
-  findings(scanId: string, severity?: string, category?: string): Promise<Finding[]> {
+  findings(
+    scanId: string,
+    severity?: string,
+    category?: string,
+    group?: "security" | "quality",
+  ): Promise<Finding[]> {
     const params = new URLSearchParams();
     if (severity) params.set("severity", severity);
     if (category) params.set("category", category);
+    if (group) params.set("group", group);
     const qs = params.toString();
     return request<Finding[]>(
       `/api/scans/${encodeURIComponent(scanId)}/findings${qs ? `?${qs}` : ""}`,
