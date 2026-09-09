@@ -10,7 +10,14 @@ detect the same issue. This module:
   3. Preserves the highest-confidence finding when merging.
 
 Fingerprint design:
-  rule_id + file_path + line_number(±5 window) + sink_api
+  For SECURITY findings:
+    rule_id + file_path + line_number(±5 window) + sink_api
+
+  For QUALITY findings (category == "quality"):
+    category + file_path + line_number(±5 window)
+    This merges any two quality findings at the same location regardless
+    of which rule/title first detected them (regex vs js_analyzer both
+    fire on console statements).
 
 Using a line window (±5) handles minor indentation changes between scans.
 """
@@ -22,6 +29,8 @@ from typing import Dict, List, Tuple
 
 from app.services.scan_engine.findings.types import RichFindingResult
 
+# Quality category constant — avoid import cycle with FindingCategory enum
+_QUALITY_CATEGORY = "quality"
 
 # ---------------------------------------------------------------------------
 # Fingerprint
@@ -34,16 +43,44 @@ def generate_fingerprint(finding: RichFindingResult) -> str:
     """
     Generate a stable, content-independent fingerprint for a finding.
 
-    Uses: rule_id + normalized file path + bucketed line number + sink api.
-    The line is bucketed to a window so minor reformatting doesn't create
-    different fingerprints for the same logical finding.
+    For quality findings: uses category + normalized file path + bucketed
+    line number. This ensures that two analyzers detecting the same console
+    statement on the same line will produce the same fingerprint regardless
+    of which rule ID or title they used.
+
+    For security findings: uses rule_id + normalized file path + bucketed
+    line number + sink api.  The rule_id discriminates genuine security
+    findings from one another even when they appear on the same line.
     """
-    rule = finding.rule_id or finding.title.lower().replace(" ", "_")
     path = finding.file_path.replace("\\", "/")
     line_bucket = (finding.line_number // _LINE_WINDOW) * _LINE_WINDOW
-    sink_api = finding.sink.api if finding.sink else ""
+    category = finding.category or ""
 
-    raw = f"{rule}:{path}:{line_bucket}:{sink_api}"
+    if category == _QUALITY_CATEGORY:
+        # Quality findings: merge by location + category only, BUT only for
+        # rules that are genuinely quality rules (QA prefix).
+        # Security rules (PY*, JS*, SEC*, CRY*) that happen to carry
+        # category="quality" still need rule-level discrimination so that
+        # two different security rules on the same line stay separate.
+        rule_id = finding.rule_id or ""
+        is_quality_rule = (
+            rule_id.startswith("QA")
+            or (not rule_id and category == _QUALITY_CATEGORY)
+        )
+        if is_quality_rule:
+            # Two QA rules detecting "console.log on line 176" produce one finding.
+            raw = f"quality:{path}:{line_bucket}"
+        else:
+            # Security rule with quality category — keep rule-level granularity
+            sink_api = finding.sink.api if finding.sink else ""
+            raw = f"{rule_id}:{path}:{line_bucket}:{sink_api}"
+    else:
+        # Security findings: rule_id distinguishes genuinely different issues
+        # that may share a line (e.g. XSS + SQL injection on the same sink).
+        rule = finding.rule_id or finding.title.lower().replace(" ", "_")
+        sink_api = finding.sink.api if finding.sink else ""
+        raw = f"{rule}:{path}:{line_bucket}:{sink_api}"
+
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
@@ -77,6 +114,8 @@ def _merge_pair(keep: RichFindingResult, discard: RichFindingResult) -> RichFind
     Merge *discard* into *keep*, enriching *keep* with any missing fields.
 
     The richer/higher-priority finding wins on all set fields.
+    For quality findings the context-aware analyzer's title and description
+    are preferred over the generic regex title.
     """
     # Prefer higher severity
     if _SEVERITY_ORDER.get(discard.severity, 0) > _SEVERITY_ORDER.get(keep.severity, 0):
@@ -86,6 +125,23 @@ def _merge_pair(keep: RichFindingResult, discard: RichFindingResult) -> RichFind
     if discard.confidence > keep.confidence:
         keep.confidence = discard.confidence
         keep.confidence_level = discard.confidence_level
+
+    # For quality findings: if the discard title is more specific (longer or
+    # uses a known "better" keyword), prefer it for the user-visible title.
+    if keep.category == _QUALITY_CATEGORY:
+        keep_generic = keep.title in (
+            "console statement left in code (JavaScript/TypeScript)",
+            "debugger statement (JavaScript/TypeScript)",
+            "Debug print statement (Python)",
+        )
+        discard_specific = discard.title not in (
+            "console statement left in code (JavaScript/TypeScript)",
+            "debugger statement (JavaScript/TypeScript)",
+            "Debug print statement (Python)",
+        )
+        if keep_generic and discard_specific:
+            keep.title = discard.title
+            keep.description = discard.description
 
     # Fill in source/sink/dataflow from discard if keep is missing them
     if not keep.source and discard.source:

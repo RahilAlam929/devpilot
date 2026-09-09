@@ -437,11 +437,15 @@ def _analyze_file_rich(
                     continue
                 if not rule.pattern.search(line):
                     continue
-                # Skip rules handled by the AST analyzers to avoid double-reporting
-                # Only skip secrets since those are handled by python_analyzer/js_analyzer.
-                # Quality rules (print, console, debugger, TODO) are ONLY in regex.
+                # Skip rules handled by the AST/structural analyzers to avoid double-reporting.
+                # - Secrets are handled by python_analyzer/js_analyzer.
+                # - JS/TS console and debugger rules are handled by js_analyzer._check_quality.
+                #   Keeping them in the regex pass would create duplicate findings at the same
+                #   line with different titles, defeating deduplication.
                 skip_titles = {
                     "Possible hardcoded secret",
+                    "console statement left in code (JavaScript/TypeScript)",
+                    "debugger statement (JavaScript/TypeScript)",
                 }
                 if rule.title in skip_titles:
                     continue

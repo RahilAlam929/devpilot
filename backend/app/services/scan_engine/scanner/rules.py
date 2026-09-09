@@ -472,22 +472,25 @@ register(SecurityRule(
     title="Possible secret value in log statement",
     description="A logging call appears to log a value associated with a secret or credential. Secrets in logs are a serious exposure risk.",
     category="secrets",
-    supported_languages={"python"},
+    supported_languages={"python", "javascript", "typescript"},
     cwe="CWE-532",
-    default_severity="high",
+    default_severity="medium",
     base_confidence=55,
-    why_risky="Log files are often less protected than application code. They may be accessible to monitoring tools, log aggregators, support staff, or attackers.",
-    impact="Secret/credential exposure via log files, monitoring dashboards, or log-forwarding pipelines.",
+    why_risky="Log files are often less protected than application code. They may be accessible to monitoring tools, log aggregators, support staff, or attackers. Console output in browsers is visible to DevTools, XSS attacks, and browser extensions.",
+    impact="Secret/credential exposure via log files, browser DevTools, monitoring dashboards, or log-forwarding pipelines.",
     remediation=(
         "1. Never log secrets, tokens, or passwords.\n"
         "2. Log only non-sensitive identifiers (user ID, request ID).\n"
-        "3. Mask or redact sensitive values before logging."
+        "3. Mask or redact sensitive values before logging.\n"
+        "4. Remove debug console statements before production deployment."
     ),
     fix_example=(
-        "# UNSAFE:\n"
-        "logger.debug('Using API key: %s', api_key)\n\n"
-        "# SAFE:\n"
-        "logger.debug('API key configured: %s', '***' if api_key else 'not set')"
+        "// UNSAFE:\n"
+        "console.log('Token:', authToken);\n\n"
+        "// SAFE:\n"
+        "console.log('Authentication successful');\n"
+        "// Or:\n"
+        "console.log('User ID:', userId);  // log identifier, not secret"
     ),
     references=["https://cwe.mitre.org/data/definitions/532.html"],
 ))
@@ -566,9 +569,14 @@ register(SecurityRule(
     cwe=None,
     default_severity="low",
     base_confidence=85,
-    why_risky="Console statements in production may expose sensitive data and indicate the code was not properly cleaned up.",
+    why_risky="Console statements in production code may expose non-obvious implementation details and indicate the code was not properly reviewed before deployment.",
     impact="Potential information disclosure in browser DevTools or server logs.",
-    remediation="Remove console statements or replace with a structured logging library (pino, winston).",
+    remediation=(
+        "Remove console statements or replace with a structured logging library (pino, winston) "
+        "that supports log levels and can be disabled in production builds.\n\n"
+        "If the logged value could be sensitive (tokens, passwords, user objects), treat this as "
+        "a potential information disclosure issue (SEC002)."
+    ),
     fix_example=None,
     references=[],
 ))

@@ -181,6 +181,105 @@ _QUALITY_SINKS: List[Tuple[str, re.Pattern, str, str, str]] = [
     ),
 ]
 
+# ---------------------------------------------------------------------------
+# Console sensitivity analysis
+# ---------------------------------------------------------------------------
+
+# Sensitive variable/property names that suggest data disclosure risk
+_SENSITIVE_ARG_PATTERN = re.compile(
+    r"\b(?:"
+    # Authentication/secrets
+    r"token|secret|password|passwd|pwd|apikey|api_key|apiKey|accesskey|access_key"
+    r"|privatekey|private_key|privateKey|authToken|auth_token|credentials?|credential"
+    r"|sessionId|session_id|sessionToken|session_token"
+    # User identity (complete objects risk leaking PII)
+    r"|user(?!Name|name|Id|id|Label|label|Error|error|Input|input|Data|data|Info|info|Msg|msg|Message|message)"
+    r"|userObj|currentUser|loggedInUser|authUser"
+    # Environment
+    r"|process\.env\."
+    # Complete response/request objects that may contain headers/secrets
+    r"|response\.headers|req\.headers|request\.headers"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Benign patterns: error objects, static strings, IDs, counts, booleans
+_BENIGN_ARG_PATTERN = re.compile(
+    r"""^(?:"""
+    r""""[^"]*"|'[^']*'|`[^`]*`"""  # string literals
+    r"""|(?:true|false|null|undefined|\d+)"""  # primitives
+    r"""|(?:err|error|e|ex|exception)\b"""  # error objects  
+    r"""|(?:\w+Id|\w+Count|\w+Length|\w+Size|\w+Index)\b"""  # IDs/counts
+    r"""|(?:isLoading|isOpen|isActive|enabled|disabled)\b"""  # booleans
+    r")\s*$",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _strip_string_literals(text: str) -> str:
+    """
+    Remove the content of string literals from *text*, leaving quote markers.
+    This prevents matching sensitive keywords that appear inside string values
+    like console.log("User logged in") or console.log("No password needed").
+    """
+    # Replace single-quoted string content with empty placeholder
+    text = re.sub(r"'[^']*'", "''", text)
+    # Replace double-quoted string content with empty placeholder
+    text = re.sub(r'"[^"]*"', '""', text)
+    # Replace template literal content with empty placeholder
+    text = re.sub(r"`[^`]*`", "``", text)
+    return text
+
+
+def _extract_console_args(line: str) -> str:
+    """
+    Extract the argument text from a console.xxx(...) call.
+    Returns the raw argument string (may be truncated by line end).
+    """
+    m = re.search(r"\bconsole\s*\.\s*\w+\s*\((.+)", line)
+    if not m:
+        return ""
+    args = m.group(1)
+    # Strip trailing ) and whitespace if present on this line
+    if args.endswith(");") or args.endswith(")"):
+        args = args.rstrip(";)").rstrip()
+    return args.strip()
+
+
+def _classify_console_sensitivity(line: str, args: str) -> tuple[bool, str]:
+    """
+    Classify whether a console call looks like it may log sensitive data.
+
+    Returns (is_sensitive, reason_label).
+
+    Only matches sensitive keywords that appear as identifiers (variable
+    names, property accesses), not inside string literals.
+    """
+    if not args:
+        return False, ""
+
+    # Remove string literal contents so we don't match 'token' inside
+    # "no token required" or "User logged in".
+    args_stripped = _strip_string_literals(args)
+
+    # If args_stripped is only string literal placeholders, it's definitely
+    # a static log message — benign.
+    placeholder_only = re.fullmatch(r"""['"` ,+]+""", args_stripped)
+    if placeholder_only:
+        return False, ""
+
+    # Check for sensitive keywords in the non-literal argument expression
+    m = _SENSITIVE_ARG_PATTERN.search(args_stripped)
+    if m:
+        matched = m.group(0)
+        return True, matched
+
+    # Check for process.env access
+    if re.search(r"process\.env\.", args_stripped):
+        return True, "process.env"
+
+    return False, ""
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -372,6 +471,20 @@ def _check_quality(
     findings: List[RichFindingResult],
     sup_map: Optional[SuppressionMap],
 ) -> None:
+    """
+    Detect console statements and debugger calls.
+
+    Console calls are classified by argument sensitivity:
+    - Low severity (quality): console.log("hello"), console.error(err)
+    - Medium severity / potential info disclosure (secrets category):
+      console.log(token), console.log(user), console.log(process.env.SECRET)
+
+    This avoids treating every console statement as a security issue while
+    still surfacing meaningful potential data-exposure patterns.
+    """
+    _console_re = re.compile(r"\bconsole\s*\.\s*(?:log|debug|info|warn|error)\s*\(")
+    _debugger_re = re.compile(r"\bdebugger\b")
+
     for lineno_0, line in enumerate(lines):
         lineno = lineno_0 + 1
         snippet = line.strip()
@@ -381,28 +494,122 @@ def _check_quality(
         if stripped.startswith("//") or stripped.startswith("*"):
             continue
 
-        for rule_id, pattern, title, severity, category in _QUALITY_SINKS:
-            if not pattern.search(line):
+        # ── debugger statement ──────────────────────────────────────────
+        if _debugger_re.search(line):
+            if sup_map and is_suppressed(sup_map, lineno, "QA003"):
                 continue
-            if sup_map and is_suppressed(sup_map, lineno, rule_id):
-                continue
-
             finding = RichFindingResult(
-                severity=severity,
-                title=title,
-                description=f"{title} found in production code.",
+                severity="low",
+                title="debugger statement",
+                description="debugger statement found in production code — remove before deploying.",
                 file_path=file_path,
                 line_number=lineno,
-                rule_id=rule_id,
-                category=category,
+                rule_id="QA003",
+                category=FindingCategory.QUALITY.value,
                 code_snippet=snippet,
                 language=language,
                 analyzer="regex",
                 evidence=snippet,
+                remediation="Remove the debugger statement. It pauses execution in DevTools and has no effect in production, but indicates code was not cleaned up.",
             )
             apply_confidence(finding, is_regex_only=True)
             findings.append(finding)
-            break
+            continue
+
+        # ── console statement ──────────────────────────────────────────
+        if not _console_re.search(line):
+            continue
+
+        # Extract argument text for sensitivity analysis
+        args = _extract_console_args(line)
+        is_sensitive, sensitive_match = _classify_console_sensitivity(line, args)
+
+        if is_sensitive:
+            # Potentially logging sensitive data — report as secrets/info-disclosure
+            if sup_map and is_suppressed(sup_map, lineno, "SEC002"):
+                continue
+            method_m = re.search(r"console\s*\.\s*(\w+)", line)
+            method = method_m.group(1) if method_m else "log"
+            finding = RichFindingResult(
+                severity="medium",
+                title=f"console.{method}() may log sensitive data",
+                description=(
+                    f"console.{method}() is called with an argument that appears to reference "
+                    f"sensitive data ({sensitive_match!r}). Debug logs in production code can "
+                    f"expose tokens, passwords, or user PII in browser DevTools or server logs."
+                ),
+                file_path=file_path,
+                line_number=lineno,
+                rule_id="SEC002",
+                category=FindingCategory.SECRETS.value,
+                code_snippet=snippet,
+                language=language,
+                analyzer="regex",
+                cwe="CWE-532",
+                evidence=snippet,
+                why_risky=(
+                    "Logging sensitive values such as authentication tokens, passwords, API keys, "
+                    "or full user objects exposes them in browser DevTools (accessible to XSS "
+                    "attacks and browser extensions), server logs (may be stored insecurely), and "
+                    "monitoring systems."
+                ),
+                impact=(
+                    "Credential or PII exposure in browser DevTools, log files, and monitoring "
+                    "pipelines. Depending on what is logged: authentication bypass, account "
+                    "takeover, or privacy violation."
+                ),
+                remediation=(
+                    "Remove the console statement or replace it with structured logging that "
+                    "masks sensitive values.\n\n"
+                    "Examples:\n"
+                    "  // Log that auth succeeded without logging the token:\n"
+                    "  console.log('User authenticated successfully');\n\n"
+                    "  // Log a non-sensitive identifier instead:\n"
+                    "  console.log('User ID:', userId);\n\n"
+                    "  // For production: use a structured logger with log levels:\n"
+                    "  logger.info({ event: 'auth.success', userId });"
+                ),
+            )
+            apply_confidence(
+                finding,
+                is_regex_only=True,
+                source_is_constant=False,
+            )
+            findings.append(finding)
+        else:
+            # Generic quality finding — non-sensitive console statement
+            if sup_map and is_suppressed(sup_map, lineno, "QA003"):
+                continue
+            method_m = re.search(r"console\s*\.\s*(\w+)", line)
+            method = method_m.group(1) if method_m else "log"
+            finding = RichFindingResult(
+                severity="low",
+                title="console statement in production code",
+                description=(
+                    f"console.{method}() was left in production code. "
+                    "Debug logs clutter output and may leak non-obvious information."
+                ),
+                file_path=file_path,
+                line_number=lineno,
+                rule_id="QA003",
+                category=FindingCategory.QUALITY.value,
+                code_snippet=snippet,
+                language=language,
+                analyzer="regex",
+                evidence=snippet,
+                remediation=(
+                    "Remove the console statement before deploying to production. "
+                    "If logging is needed, replace with a structured logging library "
+                    "(pino, winston) that supports log levels and can be disabled in production.\n\n"
+                    "// Remove:\n"
+                    f"// console.{method}(...);\n\n"
+                    "// Or replace with structured logger:\n"
+                    "// import { logger } from './lib/logger';\n"
+                    "// logger.debug(...);"
+                ),
+            )
+            apply_confidence(finding, is_regex_only=True)
+            findings.append(finding)
 
 
 # ---------------------------------------------------------------------------
