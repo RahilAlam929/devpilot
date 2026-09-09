@@ -117,8 +117,10 @@ def client(test_user):
      - DB overridden to in-memory SQLite
      - get_current_user overridden to return test_user (no JWT needed)
     """
+    from app.api.findings import get_db as findings_get_db
     app.dependency_overrides[scans_get_db] = override_get_db
     app.dependency_overrides[repos_get_db] = override_get_db
+    app.dependency_overrides[findings_get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: test_user
 
     with TestClient(app) as c:
@@ -130,8 +132,10 @@ def client(test_user):
 @pytest.fixture()
 def other_client(other_user):
     """TestClient authenticated as other_user."""
+    from app.api.findings import get_db as findings_get_db
     app.dependency_overrides[scans_get_db] = override_get_db
     app.dependency_overrides[repos_get_db] = override_get_db
+    app.dependency_overrides[findings_get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: other_user
 
     with TestClient(app) as c:

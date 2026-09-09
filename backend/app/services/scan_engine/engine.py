@@ -109,6 +109,16 @@ class ScanEngine:
         patch_available = _get(result, "patch_available")
         finding.patch_available = bool(patch_available) if patch_available is not None else False
 
+        # Phase 6: SCA / Dependency fields
+        finding.dependency_name = _get_dict(result, "dependency_name") or None
+        finding.dependency_version = _get_dict(result, "dependency_version") or None
+        finding.fixed_version = _get_dict(result, "fixed_version") or None
+        finding.advisory_id = _get_dict(result, "advisory_id") or None
+
+        # Phase 6: Secret scanner — NEVER store full secret
+        finding.secret_type = _get_dict(result, "secret_type") or None
+        finding.redacted_value = _get_dict(result, "redacted_value") or None
+
         # Patch text: serialize PatchInfo to JSON string
         patch = _get(result, "patch")
         if patch is not None:
@@ -154,3 +164,13 @@ class ScanEngine:
 def _get(obj, attr: str, default=None):
     """Safely get an attribute from an object."""
     return getattr(obj, attr, default)
+
+
+def _get_dict(obj, key: str, default=None):
+    """Get a value from an object's __dict__ or attributes (for Phase 6 dynamic fields)."""
+    # Try __dict__ first (dynamic attributes set by Phase 6 analyzers)
+    obj_dict = getattr(obj, "__dict__", {})
+    val = obj_dict.get(key, None)
+    if val is not None:
+        return val
+    return getattr(obj, key, default)

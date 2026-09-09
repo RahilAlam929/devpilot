@@ -325,6 +325,41 @@ class Finding(Base):
         index=True,
     )
 
+    # ── Phase 6 additions (all nullable for backward compat) ──────────────
+
+    # SCA / Dependency findings
+    dependency_name: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    dependency_version: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    fixed_version: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    advisory_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    # Secret scanner findings
+    secret_type: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    # REDACTED value only — never the full secret
+    redacted_value: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
     # ── Relationship ──────────────────────────────────────────────────────
     scan: Mapped["Scan"] = relationship(
         back_populates="findings",

@@ -1,0 +1,16 @@
+# SECURITY TEST FIXTURE — docker-compose.yml
+# Intentionally insecure for Phase 6 testing
+version: "3.8"
+services:
+  db:
+    image: postgres:16
+    environment:
+      # FAKE password — synthetic test value only
+      - POSTGRES_PASSWORD=test_fake_password_123
+    ports:
+      # Exposed to 0.0.0.0 — should be 127.0.0.1:5432:5432
+      - "5432:5432"
+  web:
+    build: .
+    ports:
+      - "3000:3000"

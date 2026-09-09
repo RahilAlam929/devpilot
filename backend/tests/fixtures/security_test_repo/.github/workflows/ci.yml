@@ -1,0 +1,21 @@
+# SECURITY TEST FIXTURE — GitHub Actions workflow
+# Intentionally insecure for Phase 6 testing
+name: Insecure Workflow
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions: write-all
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Process PR title
+        run: |
+          echo "PR title: ${{ github.event.pull_request.title }}"
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18

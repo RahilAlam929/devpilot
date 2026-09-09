@@ -1,0 +1,12 @@
+{
+  "name": "security-test-fixture",
+  "version": "1.0.0",
+  "description": "Security test fixture with intentionally vulnerable dependencies",
+  "dependencies": {
+    "lodash": "4.17.10",
+    "minimist": "1.2.2",
+    "qs": "6.9.0",
+    "semver": "7.5.0",
+    "axios": "1.4.0"
+  }
+}

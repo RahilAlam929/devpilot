@@ -522,7 +522,40 @@ def analyze_repository(root: Path) -> list:
         if not f.fingerprint:
             f.fingerprint = generate_fingerprint(f)
 
-    # Deduplicate
+    # Deduplicate SAST/quality findings first
+    all_findings = deduplicate(all_findings)
+
+    # ── Phase 6 analyzers (each fails gracefully) ──────────────────────
+
+    # SCA: dependency vulnerability scanning
+    try:
+        from app.services.scan_engine.scanner.dependency_analyzer import analyze_dependencies
+        sca_findings = analyze_dependencies(root_resolved)
+        all_findings.extend(sca_findings)
+    except Exception as exc:
+        logger.warning("SCA analyzer error: %s", exc)
+
+    # Secret scanner (comprehensive, context-aware, evidence always redacted)
+    try:
+        from app.services.scan_engine.scanner.secret_scanner import analyze_secrets
+        secret_findings = analyze_secrets(root_resolved)
+        all_findings.extend(secret_findings)
+    except Exception as exc:
+        logger.warning("Secret scanner error: %s", exc)
+
+    # IaC analyzer (Dockerfile, Compose, GitHub Actions, K8s, Terraform)
+    try:
+        from app.services.scan_engine.scanner.iac_analyzer import analyze_iac
+        iac_findings = analyze_iac(root_resolved)
+        all_findings.extend(iac_findings)
+    except Exception as exc:
+        logger.warning("IaC analyzer error: %s", exc)
+
+    # Final fingerprinting + deduplication across all analyzers
+    for f in all_findings:
+        if not f.fingerprint:
+            f.fingerprint = generate_fingerprint(f)
+
     all_findings = deduplicate(all_findings)
 
     return all_findings

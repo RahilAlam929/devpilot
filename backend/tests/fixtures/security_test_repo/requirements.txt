@@ -1,0 +1,10 @@
+# SECURITY TEST FIXTURE — requirements.txt
+# Contains versions with known vulnerabilities (from local advisory DB)
+# Used only for testing SCA detection
+
+werkzeug==2.1.0
+requests==2.28.0
+cryptography==40.0.0
+setuptools==68.0.0
+PyYAML==3.0
+urllib3==1.26.5
