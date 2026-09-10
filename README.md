@@ -17,6 +17,7 @@ Register / Login
       │
       ▼
 Create a Project
+
       │
       ▼
 Register a Repository  (name + URL stored; no cloning)
@@ -33,6 +34,27 @@ Findings stored in PostgreSQL  (high / medium / low / info)
       ▼
 Query findings via API or view the dashboard summary
 ```
+
+
+create project
+
+<img width="897" height="764" alt="Screenshot 2026-09-10 at 1 07 53 AM" src="https://github.com/user-attachments/assets/0a3b52cb-b8fb-4b55-a845-c1321b98578d" />
+
+
+create project and repo
+
+<img width="923" height="893" alt="Screenshot 2026-09-10 at 1 07 35 AM" src="https://github.com/user-attachments/assets/1f74abed-a965-4804-a654-e64a7660d4a4" />
+
+
+and Then click scan 
+
+<img width="919" height="861" alt="Screenshot 2026-09-10 at 1 07 27 AM" src="https://github.com/user-attachments/assets/23475b5f-ba97-480f-a541-e9de86bbda07" />
+
+
+click finding 
+
+
+<img width="901" height="857" alt="Screenshot 2026-09-10 at 1 07 09 AM" src="https://github.com/user-attachments/assets/f3fd6630-4a2e-4c7a-8a03-000ea1440304" />
 
 ---
 
