@@ -73,7 +73,7 @@ class DataFlowStepResponse(BaseModel):
 
 class FindingResponse(BaseModel):
     """
-    Phase 5 finding response.
+    Phase 5 / Phase 8 finding response.
     All new fields are Optional so existing clients using only the original
     5 fields continue to work without any changes.
     """
@@ -116,12 +116,40 @@ class FindingResponse(BaseModel):
     secret_type: Optional[str] = None
     redacted_value: Optional[str] = None
 
+    # ── Phase 8: GitHub source navigation ────────────────────────────────
+    # Fully-qualified GitHub blob URL pointing to the exact file and line
+    # that was scanned, e.g.:
+    #   https://github.com/owner/repo/blob/<sha>/path/to/file.py#L42
+    # None when the finding lacks enough information to build a valid URL.
+    source_url: Optional[str] = None
+
     class Config:
         from_attributes = True
 
     @classmethod
-    def from_orm_with_patch(cls, finding: Finding) -> "FindingResponse":
-        """Build response, deserializing patch_text JSON if present."""
+    def from_orm_with_patch(
+        cls,
+        finding: "Finding",
+        repo_url: Optional[str] = None,
+        scan_ref: Optional[str] = None,
+    ) -> "FindingResponse":
+        """
+        Build response, deserializing patch_text JSON if present and
+        computing the GitHub source_url when sufficient data is available.
+
+        Parameters
+        ----------
+        finding:
+            The ORM Finding instance.
+        repo_url:
+            The repository's HTTPS URL (from Repository.url).
+            Required to generate source_url.
+        scan_ref:
+            The git ref to use for the link: commit SHA preferred,
+            then branch name.  None means no source link can be built.
+        """
+        from app.services.github.source_url import build_github_source_url
+
         data = {
             "id": finding.id,
             "scan_id": finding.scan_id,
@@ -158,6 +186,14 @@ class FindingResponse(BaseModel):
             "advisory_id": getattr(finding, "advisory_id", None),
             "secret_type": getattr(finding, "secret_type", None),
             "redacted_value": getattr(finding, "redacted_value", None),
+            # Phase 8: GitHub source navigation
+            "source_url": build_github_source_url(
+                repo_url=repo_url or "",
+                file_path=finding.file_path,
+                ref=scan_ref,
+                start_line=finding.line_number,
+                end_line=finding.end_line,
+            ),
         }
         # Deserialize patch JSON if present
         if finding.patch_text:
@@ -599,7 +635,23 @@ def list_findings(
 
     db_findings = query.order_by(Finding.id.desc()).all()
 
-    return [FindingResponse.from_orm_with_patch(f) for f in db_findings]
+    # ── Phase 8: resolve GitHub source URL context ────────────────────────
+    # Load the repository URL and pick the best ref for source navigation:
+    #   1. commit_sha (exact revision that was scanned) — preferred
+    #   2. branch name
+    #   3. None (source_url will be null)
+    repo_url: Optional[str] = None
+    scan_ref: Optional[str] = None
+
+    repository = db.query(Repository).filter(Repository.id == scan.repository_id).first()
+    if repository:
+        repo_url = repository.url
+
+    commit_sha = getattr(scan, "commit_sha", None)
+    branch = getattr(scan, "branch", None)
+    scan_ref = commit_sha or branch or None
+
+    return [FindingResponse.from_orm_with_patch(f, repo_url=repo_url, scan_ref=scan_ref) for f in db_findings]
 
 
 # ---------------------------------------------------------------------------

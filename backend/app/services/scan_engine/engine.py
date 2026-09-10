@@ -1,21 +1,25 @@
 """
-ScanEngine — Phase 5.
+ScanEngine — Phase 5 / Phase 8 (GitHub source navigation).
 
 Orchestrates a single scan run:
   1. Validate the repository path.
   2. Set scan status to "running".
-  3. Call analyze_repository() which returns List[RichFindingResult].
-  4. Persist all rich fields to the Finding model.
-  5. Mark scan "completed" or "failed".
+  3. Capture git commit SHA + branch from the cloned path (Phase 8).
+  4. Call analyze_repository() which returns List[RichFindingResult].
+  5. Persist all rich fields to the Finding model.
+  6. Mark scan "completed" or "failed".
 
 Backward compatible: the core lifecycle is unchanged.
-New: persists all Phase 5 rich fields when present.
+New (Phase 8): captures commit_sha and branch from the cloned repo so that
+  "Open on GitHub" links can point to the exact revision that was scanned.
 """
 
 import json
 import logging
+import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -48,6 +52,14 @@ class ScanEngine:
 
         self.scan.status = "running"
         self.scan.started_at = datetime.utcnow()
+
+        # ── Phase 8: capture git ref for "Open on GitHub" links ───────────
+        commit_sha, branch = _capture_git_ref(root)
+        if commit_sha:
+            self.scan.commit_sha = commit_sha
+        if branch:
+            self.scan.branch = branch
+
         self.db.commit()
 
         try:
@@ -174,3 +186,60 @@ def _get_dict(obj, key: str, default=None):
     if val is not None:
         return val
     return getattr(obj, key, default)
+
+
+def _capture_git_ref(repo_path: Path) -> "tuple[Optional[str], Optional[str]]":
+    """
+    Capture the git commit SHA and branch name from a cloned repository.
+
+    Uses ``git rev-parse HEAD`` and ``git rev-parse --abbrev-ref HEAD``
+    executed inside *repo_path*.  Both calls are safe:
+      - Never shell=True.
+      - No user input is passed as arguments.
+      - Failure is silently swallowed; the scan continues normally.
+
+    Returns
+    -------
+    (commit_sha, branch) — either or both may be None if git is not
+    available, the path is not a git repository, or the call fails.
+    """
+    import os
+
+    commit_sha: str | None = None
+    branch: str | None = None
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            cwd=str(repo_path),
+            timeout=10,
+            shell=False,
+            env={**os.environ},
+        )
+        if result.returncode == 0:
+            sha = result.stdout.decode(errors="replace").strip()
+            # Validate: must be 40 or 64 hex chars (SHA-1 or SHA-256)
+            if sha and all(c in "0123456789abcdefABCDEF" for c in sha) and len(sha) in (40, 64):
+                commit_sha = sha
+    except Exception:
+        pass  # git not available or not a git repo — that's fine
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            cwd=str(repo_path),
+            timeout=10,
+            shell=False,
+            env={**os.environ},
+        )
+        if result.returncode == 0:
+            ref = result.stdout.decode(errors="replace").strip()
+            # "HEAD" means detached HEAD — not a useful branch name
+            if ref and ref != "HEAD":
+                branch = ref
+    except Exception:
+        pass
+
+    return commit_sha, branch

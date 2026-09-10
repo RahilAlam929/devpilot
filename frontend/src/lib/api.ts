@@ -93,6 +93,9 @@ export interface Finding {
   patch_available?: boolean | null;
   patch?: PatchInfo | null;
   fingerprint?: string | null;
+  // Phase 8: GitHub source navigation
+  /** Fully-qualified GitHub blob URL for this finding, or null if unavailable. */
+  source_url?: string | null;
 }
 
 // ─── Error type ────────────────────────────────────────────────────────────

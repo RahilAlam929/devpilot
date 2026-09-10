@@ -151,6 +151,24 @@ class Scan(Base):
         nullable=True,
     )
 
+    # ── GitHub source navigation (Phase 8) ────────────────────────────────
+    # Commit SHA captured from `git rev-parse HEAD` after the shallow clone.
+    # Used to build "Open on GitHub" links pointing to the exact revision
+    # that was scanned.  Nullable — populated only when a GitHub repo is
+    # cloned; not present for legacy local-path scans.
+    commit_sha: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    # Branch name parsed from the cloned repository, if determinable.
+    # For shallow clones this is the default branch (HEAD) checked out by
+    # `git clone --depth 1`.  Falls back to commit_sha when not available.
+    branch: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
     repository: Mapped["Repository"] = relationship(
         back_populates="scans",
     )

@@ -462,3 +462,67 @@ The existing Findings page is updated minimally:
 3. Open any Finding in the Findings UI, expand it, and click "✦ AI Analysis".
 
 To disable at any time, set `LLM_ENABLED=false`. All existing functionality continues without any change.
+
+
+---
+
+## Phase 8 — GitHub Source Navigation
+
+Phase 8 adds an "Open on GitHub" source link to every finding that has enough
+information to construct a valid URL.  The link points to the exact file and
+line in the exact revision of the repository that was scanned — not just the
+current HEAD of the default branch.
+
+### Goal
+
+When a developer reviews a finding in the Findings UI, they can click
+**Open on GitHub ↗** to jump directly to the affected file and line on GitHub.
+
+### What changed
+
+| Layer | Change |
+|-------|--------|
+| `Scan` model | New nullable columns `commit_sha VARCHAR(64)` and `branch VARCHAR(255)` |
+| Migration `d1e2f3a4b5c6` | Adds the two columns; existing rows are unaffected |
+| `ScanEngine.run()` | Calls `_capture_git_ref()` after the clone to record the SHA and branch |
+| `app/services/github/source_url.py` | New module — `build_github_source_url()` and helpers |
+| `FindingResponse` | New optional field `source_url: Optional[str]` |
+| `GET /api/scans/{scan_id}/findings` | Resolves `repo_url` + `scan_ref` and passes them to `from_orm_with_patch()` |
+| `frontend/src/lib/api.ts` | `Finding.source_url?: string \| null` |
+| `frontend/src/app/findings/page.tsx` | "Open on GitHub ↗" button in the expanded finding card |
+
+### URL format
+
+```
+https://github.com/{owner}/{repo}/blob/{ref}/{file_path}#L{start_line}
+https://github.com/{owner}/{repo}/blob/{ref}/{file_path}#L{start_line}-L{end_line}
+```
+
+### Reference selection (priority order)
+
+1. **Commit SHA** — captured from `git rev-parse HEAD` inside the shallow clone.
+   Points to the exact revision that was analysed.
+2. **Branch name** — from `git rev-parse --abbrev-ref HEAD`, used when no SHA
+   is available.
+3. **`null`** — if neither is available, `source_url` is `null` and the button
+   is hidden.  This covers legacy local-path scans and any scan that predates
+   Phase 8.
+
+### Security constraints in `build_github_source_url()`
+
+- Only `https://github.com/` URLs are accepted; any other host returns `null`.
+- Embedded credentials, ports, query strings, and fragments are all rejected.
+- File paths are sanitised: absolute prefixes stripped, `..` components
+  removed, null bytes rejected, components percent-encoded.
+- Refs are validated against `[A-Za-z0-9/_.\-]{1,200}` and must not start/end
+  with `.` or contain `..`.
+- All failure modes return `null` — a missing link is always safer than a
+  malformed or injected link.
+
+### Frontend behaviour
+
+- The button is only rendered when `finding.source_url` is non-null.
+- Opens in a new tab with `target="_blank" rel="noopener noreferrer"`.
+- Carries a descriptive `aria-label` for screen-reader accessibility.
+- Visually consistent with the existing dark DevPilot UI.
+- Does not interfere with severity/category filters or the AI Analysis panel.
