@@ -43,12 +43,13 @@ create project
 
 create project and repo
 
-<img width="923" height="893" alt="Screenshot 2026-09-10 at 1 07 35 AM" src="https://github.com/user-attachments/assets/1f74abed-a965-4804-a654-e64a7660d4a4" />
 
 
-and Then click scan 
 
-<img width="919" height="861" alt="Screenshot 2026-09-10 at 1 07 27 AM" src="https://github.com/user-attachments/assets/23475b5f-ba97-480f-a541-e9de86bbda07" />
+and Then click Run scan 
+
+
+<img width="869" height="711" alt="image" src="https://github.com/user-attachments/assets/b90a6f6d-eb75-424a-a825-abfcb463a89a" />
 
 
 click finding 
