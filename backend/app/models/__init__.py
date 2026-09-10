@@ -1,4 +1,4 @@
-from .models import User, Project, Repository, Scan, Finding
+from .models import User, Project, Repository, Scan, Finding, FindingLLMAnalysis
 
 __all__ = [
     "User",
@@ -6,4 +6,5 @@ __all__ = [
     "Repository",
     "Scan",
     "Finding",
+    "FindingLLMAnalysis",
 ]

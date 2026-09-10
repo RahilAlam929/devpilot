@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
@@ -30,6 +30,32 @@ class Settings(BaseSettings):
 
     # ── GitHub cloning ───────────────────────────────────────────────────────
     GIT_CLONE_TIMEOUT_SECONDS: int = 120
+
+    # ── LLM analysis (Phase 7B) ───────────────────────────────────────────
+    # All LLM settings default to safe/disabled values.
+    # Enable by setting LLM_ENABLED=true and providing the other values.
+
+    # Master switch. When false (the default), no LLM calls are made and
+    # the scanner continues deterministically.
+    LLM_ENABLED: bool = False
+
+    # Provider identifier. Supported: "openai", "anthropic".
+    # Empty string means "no provider configured".
+    LLM_PROVIDER: str = ""
+
+    # Specific model, e.g. "gpt-4o-mini" or "claude-3-haiku-20240307".
+    LLM_MODEL: str = ""
+
+    # API key — NEVER log or expose this value.
+    # Stored as Optional[str] so an empty .env value stays None (not "").
+    LLM_API_KEY: Optional[str] = None
+
+    # Request timeout in seconds.
+    LLM_TIMEOUT_SECONDS: int = 30
+
+    # Maximum characters of finding context to send to the LLM.
+    # Larger contexts cost more tokens; smaller ones may miss evidence.
+    LLM_MAX_CONTEXT_CHARS: int = 12_000
 
     model_config = SettingsConfigDict(
         env_file=".env",

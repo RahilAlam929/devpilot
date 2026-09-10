@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useReducer, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { projects as projectsApi, repositories as reposApi, scans as scansApi } from "@/lib/api";
-import type { Project, Repository, Scan, Finding, ScanSummary } from "@/lib/api";
+import { projects as projectsApi, repositories as reposApi, scans as scansApi, llmAnalysis } from "@/lib/api";
+import type { Project, Repository, Scan, Finding, ScanSummary, LLMAnalysisResult } from "@/lib/api";
 import PageShell from "@/components/layout/PageShell";
 
 // ── Category classification ────────────────────────────────────────────────
@@ -163,9 +163,203 @@ function CategoryBadge({ finding }: { finding: Finding }) {
   );
 }
 
+// ── AI Analysis panel ─────────────────────────────────────────────────────
+
+type AIAnalysisState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "done"; result: LLMAnalysisResult }
+  | { status: "unavailable"; reason: string }
+  | { status: "error"; message: string };
+
+function VerdictBadge({ verdict }: { verdict: string }) {
+  const map: Record<string, { label: string; color: string; bg: string }> = {
+    true_positive:        { label: "True Positive",        color: "#e8553a", bg: "rgba(232,85,58,0.12)" },
+    likely_true_positive: { label: "Likely True Positive", color: "#e8953a", bg: "rgba(232,149,58,0.12)" },
+    false_positive:       { label: "False Positive",       color: "#6b9e6b", bg: "rgba(107,158,107,0.12)" },
+    uncertain:            { label: "Uncertain",            color: "#888",    bg: "rgba(136,136,136,0.12)" },
+  };
+  const { label, color, bg } = map[verdict] ?? map["uncertain"];
+  return (
+    <span style={{
+      fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.04em",
+      padding: "3px 8px", borderRadius: "4px",
+      background: bg, color, border: `1px solid ${color}40`,
+    }}>
+      {label.toUpperCase()}
+    </span>
+  );
+}
+
+function ConfidenceBar({ value, label }: { value: number; label: string }) {
+  const pct = Math.round(value * 100);
+  const color = pct >= 70 ? "#e8553a" : pct >= 40 ? "#e8953a" : "#6b9e6b";
+  return (
+    <div style={{ marginBottom: "6px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
+        <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{label}</span>
+        <span style={{ fontSize: "0.7rem", color }}>{pct}%</span>
+      </div>
+      <div style={{ height: "4px", background: "var(--surface-hover)", borderRadius: "2px" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: "2px", transition: "width 0.3s" }} />
+      </div>
+    </div>
+  );
+}
+
+function AIAnalysisPanel({
+  scanId,
+  findingId,
+}: {
+  scanId: string;
+  findingId: string;
+}) {
+  const [state, setState] = useState<AIAnalysisState>({ status: "idle" });
+
+  // Attempt to load an existing analysis on mount
+  useEffect(() => {
+    let cancelled = false;
+    llmAnalysis.getAnalysis(scanId, findingId)
+      .then((result) => {
+        if (!cancelled) setState({ status: "done", result });
+      })
+      .catch(() => {
+        // 404 = no analysis yet — that's fine, stay idle
+        if (!cancelled) setState({ status: "idle" });
+      });
+    return () => { cancelled = true; };
+  }, [scanId, findingId]);
+
+  function handleAnalyze() {
+    setState({ status: "loading" });
+    llmAnalysis.analyze(scanId, findingId)
+      .then((result) => setState({ status: "done", result }))
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        if (message.includes("503") || message.toLowerCase().includes("unavailable")) {
+          setState({ status: "unavailable", reason: "AI analysis is not available right now." });
+        } else {
+          setState({ status: "error", message });
+        }
+      });
+  }
+
+  // ── Button label based on state ──────────────────────────────────────
+  const btnLabel =
+    state.status === "idle"        ? "✦ AI Analysis" :
+    state.status === "loading"     ? "Analyzing…" :
+    state.status === "done"        ? "✦ Analysis Available" :
+    state.status === "unavailable" ? "AI Unavailable" :
+                                     "Analysis Failed";
+
+  const btnColor =
+    state.status === "done"        ? "#6b9e6b" :
+    state.status === "unavailable" ? "#888" :
+    state.status === "error"       ? "#e8553a" :
+                                     "#5588bb";
+
+  return (
+    <div style={{ marginTop: "10px" }}>
+      {/* Trigger button */}
+      {state.status !== "done" && (
+        <button
+          onClick={handleAnalyze}
+          disabled={state.status === "loading" || state.status === "unavailable"}
+          style={{
+            fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.04em",
+            padding: "4px 10px", borderRadius: "4px", cursor: state.status === "loading" || state.status === "unavailable" ? "default" : "pointer",
+            background: "transparent", color: btnColor,
+            border: `1px solid ${btnColor}60`,
+            opacity: state.status === "loading" ? 0.7 : 1,
+          }}
+        >
+          {btnLabel}
+        </button>
+      )}
+
+      {/* Unavailable / error messages */}
+      {state.status === "unavailable" && (
+        <p style={{ fontSize: "0.75rem", color: "#888", marginTop: "6px" }}>
+          {state.reason} LLM analysis is optional — your scan results are unaffected.
+        </p>
+      )}
+      {state.status === "error" && (
+        <p style={{ fontSize: "0.75rem", color: "#e8553a", marginTop: "6px" }}>
+          Analysis failed: {state.message}
+        </p>
+      )}
+
+      {/* Analysis result panel */}
+      {state.status === "done" && (
+        <div style={{
+          marginTop: "10px", padding: "12px 14px",
+          background: "var(--surface-hover)", borderRadius: "6px",
+          border: "1px solid var(--border)",
+        }}>
+          {/* Header row */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
+            <div className="eyebrow" style={{ fontSize: "0.65rem" }}>AI ANALYSIS</div>
+            <VerdictBadge verdict={state.result.verdict} />
+            <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginLeft: "auto" }}>
+              {state.result.provider}/{state.result.model} · v{state.result.analysis_version}
+            </span>
+          </div>
+
+          {/* Scores */}
+          <ConfidenceBar value={state.result.confidence} label="Confidence" />
+          <ConfidenceBar value={state.result.exploitability} label="Exploitability" />
+
+          {/* Intelligence fields */}
+          <div style={{ marginTop: "10px", display: "grid", gap: "8px" }}>
+            <AIField label="IMPACT" text={state.result.impact} />
+            <AIField label="ROOT CAUSE" text={state.result.root_cause} />
+            <AIField label="EXPLANATION" text={state.result.explanation} />
+            <AIField label="REMEDIATION" text={state.result.remediation} highlight />
+          </div>
+
+          {/* Re-analyze button */}
+          <button
+            onClick={handleAnalyze}
+            style={{
+              marginTop: "10px", fontSize: "0.68rem", color: "var(--text-muted)",
+              background: "transparent", border: "none", cursor: "pointer",
+              padding: 0, textDecoration: "underline",
+            }}
+          >
+            Re-analyze
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AIField({
+  label,
+  text,
+  highlight = false,
+}: {
+  label: string;
+  text: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div>
+      <div className="eyebrow" style={{ fontSize: "0.62rem", marginBottom: "3px" }}>{label}</div>
+      <p style={{
+        margin: 0, fontSize: "0.8rem",
+        color: highlight ? "var(--text)" : "var(--text-muted)",
+        whiteSpace: "pre-wrap",
+      }}>
+        {text}
+      </p>
+    </div>
+  );
+}
+
 // ── Finding Card ───────────────────────────────────────────────────────────
 
-function FindingCard({ finding }: { finding: Finding }) {
+function FindingCard({ finding, scanId }: { finding: Finding; scanId: string }) {
   const [expanded, setExpanded] = useState(false);
 
   const sevColor: Record<string, string> = {
@@ -366,6 +560,9 @@ function FindingCard({ finding }: { finding: Finding }) {
               Manual review required — no deterministic patch available.
             </div>
           )}
+
+          {/* AI Analysis — optional, never breaks the page */}
+          <AIAnalysisPanel scanId={scanId} findingId={finding.id} />
         </div>
       )}
     </div>
@@ -773,7 +970,7 @@ function FindingsContent() {
         {!loadingFindings && findingsState === "done" && filtered.length > 0 && (
           <div style={{ marginTop: "8px" }}>
             {filtered.map((f) => (
-              <FindingCard key={f.id} finding={f} />
+              <FindingCard key={f.id} finding={f} scanId={selectedScanId} />
             ))}
           </div>
         )}

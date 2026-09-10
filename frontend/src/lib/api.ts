@@ -253,3 +253,61 @@ export const scans = {
     );
   },
 };
+
+// ─── LLM Analysis ─────────────────────────────────────────────────────────
+
+/**
+ * Structured LLM analysis result returned from the API.
+ *
+ * SECURITY: Never contains raw prompts, API keys, or chain-of-thought.
+ * reasoning_summary is a short user-visible audit trail only.
+ */
+export interface LLMAnalysisResult {
+  available: true;
+  verdict: "true_positive" | "likely_true_positive" | "false_positive" | "uncertain";
+  confidence: number;       // 0.0–1.0
+  exploitability: number;   // 0.0–1.0
+  impact: string;
+  root_cause: string;
+  explanation: string;
+  remediation: string;
+  reasoning_summary: string;
+  provider: string;
+  model: string;
+  analysis_version: string;
+  analyzed_at: string | null;
+  finding_id: string;
+}
+
+export interface LLMUnavailableResult {
+  available: false;
+  reason: string;
+  finding_id: string;
+}
+
+export type LLMAnalysis = LLMAnalysisResult | LLMUnavailableResult;
+
+export const llmAnalysis = {
+  /**
+   * Trigger LLM analysis for a specific finding.
+   * Returns cached result if one already exists for the same context.
+   * Throws ApiError with status 503 if LLM is disabled/unavailable.
+   * Never exposes API keys, raw prompts, or chain-of-thought.
+   */
+  analyze(scanId: string, findingId: string): Promise<LLMAnalysisResult> {
+    return request<LLMAnalysisResult>(
+      `/api/scans/${encodeURIComponent(scanId)}/findings/${encodeURIComponent(findingId)}/analyze`,
+      { method: "POST" },
+    );
+  },
+
+  /**
+   * Retrieve the latest stored LLM analysis for a finding.
+   * Throws ApiError with status 404 if no analysis has been run yet.
+   */
+  getAnalysis(scanId: string, findingId: string): Promise<LLMAnalysisResult> {
+    return request<LLMAnalysisResult>(
+      `/api/scans/${encodeURIComponent(scanId)}/findings/${encodeURIComponent(findingId)}/analysis`,
+    );
+  },
+};

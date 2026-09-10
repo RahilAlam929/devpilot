@@ -364,3 +364,121 @@ class Finding(Base):
     scan: Mapped["Scan"] = relationship(
         back_populates="findings",
     )
+
+    # ── Phase 7B: LLM analyses ────────────────────────────────────────────
+    llm_analyses: Mapped[list["FindingLLMAnalysis"]] = relationship(
+        back_populates="finding",
+        cascade="all, delete-orphan",
+    )
+
+
+class FindingLLMAnalysis(Base):
+    """
+    Persisted LLM analysis result for a specific finding — Phase 7B.
+
+    Each row records one LLM analysis call. The (finding_id, request_hash,
+    analysis_version) combination provides a natural uniqueness key so that
+    identical analysis requests are not re-stored.
+
+    SECURITY NOTES:
+      - Do NOT store the raw LLM prompt here.
+      - Do NOT store the API key here.
+      - Do NOT store hidden chain-of-thought here.
+      - reasoning_summary is a short, user-visible audit trail only.
+      - The request_hash is computed over REDACTED context, never raw secrets.
+    """
+
+    __tablename__ = "finding_llm_analyses"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid4()),
+    )
+
+    finding_id: Mapped[str] = mapped_column(
+        ForeignKey("findings.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # ── Provider metadata ──────────────────────────────────────────────────
+    provider: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    model: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    analysis_version: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    # ── Verdict ───────────────────────────────────────────────────────────
+    # Stored as string enum: true_positive | likely_true_positive |
+    #                        false_positive | uncertain
+    verdict: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+    )
+
+    confidence: Mapped[float] = mapped_column(
+        nullable=False,
+        default=0.0,
+    )
+
+    exploitability: Mapped[float] = mapped_column(
+        nullable=False,
+        default=0.0,
+    )
+
+    # ── Intelligence fields ────────────────────────────────────────────────
+    impact: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    root_cause: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    explanation: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    remediation: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # Short auditable summary of reasoning — NOT raw chain-of-thought
+    reasoning_summary: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # ── Deduplication / research metadata ─────────────────────────────────
+    # SHA-256 hex digest over the redacted context + analysis version + model
+    request_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+        index=True,
+    )
+
+    # ── Relationship ──────────────────────────────────────────────────────
+    finding: Mapped["Finding"] = relationship(
+        back_populates="llm_analyses",
+    )

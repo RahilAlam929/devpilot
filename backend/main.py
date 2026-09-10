@@ -25,6 +25,7 @@ from app.api.repositories import router as repositories_router
 from app.api.scans import router as scans_router
 from app.api.users import router as users_router
 from app.api.findings import router as findings_router
+from app.api.llm_analysis import router as llm_analysis_router
 from app.database import SessionLocal, settings
 
 # ── Logging ───────────────────────────────────────────────────────────────
@@ -168,3 +169,4 @@ app.include_router(projects_router, prefix="/api")
 app.include_router(repositories_router, prefix="/api")
 app.include_router(scans_router, prefix="/api")
 app.include_router(findings_router, prefix="/api")
+app.include_router(llm_analysis_router, prefix="/api")
