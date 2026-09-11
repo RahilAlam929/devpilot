@@ -22,7 +22,8 @@ interface PageShellProps {
 /**
  * Wraps every protected page with:
  * - Auth check → redirect to /login on 401
- * - Sidebar navigation
+ * - Sidebar navigation (desktop) / drawer navigation (mobile)
+ * - Mobile hamburger header
  * - Consistent topbar with user info + logout
  * - Loading splash while auth resolves
  */
@@ -36,6 +37,7 @@ export default function PageShell({
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [checked, setChecked] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,9 +78,38 @@ export default function PageShell({
 
   return (
     <div className="app-shell">
-      <Sidebar />
+      <Sidebar
+        mobileOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      />
+
       <section className="content">
-        <header className="topbar">
+        {/* ── Mobile header (hamburger) ─────────────────────── */}
+        <header className="mobile-header" aria-label="Mobile navigation header">
+          <button
+            className="hamburger-btn"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={drawerOpen}
+            aria-controls="sidebar-nav"
+          >
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+          </button>
+
+          <div className="mobile-header-brand">
+            <div className="brand-mark brand-mark-sm">D</div>
+            <span className="mobile-brand-name">DevPilot</span>
+          </div>
+
+          <div className="mobile-header-right">
+            <div className="avatar avatar-sm">{initials}</div>
+          </div>
+        </header>
+
+        {/* ── Desktop topbar ───────────────────────────────── */}
+        <header className="topbar" aria-label="Page header">
           <div>
             <div className="eyebrow">{eyebrow}</div>
             <h1>{heading}</h1>
