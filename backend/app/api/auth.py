@@ -48,7 +48,7 @@ def set_auth_cookie(response: Response, user_id: str):
         httponly=True,
         # In production the cookie must only travel over HTTPS.
         secure=settings.is_production,
-        samesite="lax",
+        samesite="none" if settings.is_production else "lax",
         max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )
