@@ -1,6 +1,6 @@
 # Architecture
 
-DevPilot follows a modular architecture designed to separate the frontend, API layer, database, authentication, repository integration, and scanning engine.
+DevAnalyzeX follows a modular architecture designed to separate the frontend, API layer, database, authentication, repository integration, and scanning engine.
 
 ## High-Level Architecture
 
@@ -93,7 +93,7 @@ backend/app/services/
 
 ## Authentication
 
-DevPilot uses JWT-based authentication.
+DevAnalyzeX uses JWT-based authentication.
 
 The authentication flow is:
 ```
@@ -524,5 +524,5 @@ https://github.com/{owner}/{repo}/blob/{ref}/{file_path}#L{start_line}-L{end_lin
 - The button is only rendered when `finding.source_url` is non-null.
 - Opens in a new tab with `target="_blank" rel="noopener noreferrer"`.
 - Carries a descriptive `aria-label` for screen-reader accessibility.
-- Visually consistent with the existing dark DevPilot UI.
+- Visually consistent with the existing dark DevAnalyzeX UI.
 - Does not interfere with severity/category filters or the AI Analysis panel.

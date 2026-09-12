@@ -1,10 +1,10 @@
 $schema: https://api.gitbook.com/gitbook-docs.yaml
 site:
-  title: DevPilot Labs Docs
+  title: DevAnalyzeX Docs
   structure:
     - type: section
       key: section-1
-      title: DevPilot Labs Docs
+      title: DevAnalyzeX Docs
       path: devpilot-labs-docs
       default: true
       children:
@@ -17,12 +17,12 @@ site:
             directory: ./devpilot-labs-docs/untitled
     - type: section
       key: section-2
-      title: DevPilot Documentation
+      title: DevAnalyzeX Documentation
       path: devpilot-documentation
       children:
         - type: space
           key: space-2
-          title: DevPilot Documentation
+          title: DevAnalyzeX Documentation
           path: devpilot-documentation
           default: true
           content:

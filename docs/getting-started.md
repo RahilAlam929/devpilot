@@ -13,8 +13,8 @@ Make sure the following are installed:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/<your-org>/devpilot.git
-   cd devpilot
+   git clone https://github.com/RahilAlam929/devanalyzex.git
+   cd devanalyzex
    ```
 
 2. **Set up the backend**

@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DevPilot — Code Intelligence",
+  title: "DevAnalyzeX — Code Intelligence",
   description: "Static analysis platform for software repositories.",
 };
 

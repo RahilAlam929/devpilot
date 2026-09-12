@@ -1,10 +1,10 @@
-# DevPilot
+# DevAnalyzeX
 
-DevPilot is an AI-powered developer platform for analyzing repositories, detecting code issues, and helping developers understand and improve their projects.
+DevAnalyzeX is an AI-powered developer platform for analyzing repositories, detecting code issues, and helping developers understand and improve their projects.
 
-## What DevPilot Does
+## What DevAnalyzeX Does
 
-DevPilot is being built around a simple workflow:
+DevAnalyzeX is being built around a simple workflow:
 
 1. Create an account
 2. Create a project

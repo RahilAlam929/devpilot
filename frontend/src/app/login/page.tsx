@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
+import BlogSection from "@/components/marketing/BlogSection";
+import SiteFooter from "@/components/marketing/SiteFooter";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,8 +13,12 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-shell">
-      <LoginForm onSuccess={handleSuccess} />
-    </main>
+    <>
+      <main className="auth-shell">
+        <LoginForm onSuccess={handleSuccess} />
+      </main>
+      <BlogSection />
+      <SiteFooter />
+    </>
   );
 }

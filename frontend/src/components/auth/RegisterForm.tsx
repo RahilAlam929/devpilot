@@ -46,7 +46,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
       <div className="auth-brand">
         <div className="brand-mark">D</div>
         <div>
-          <div className="brand-name">DevPilot</div>
+          <div className="brand-name">DevAnalyzeX</div>
           <div className="brand-subtitle">Code Intelligence</div>
         </div>
       </div>

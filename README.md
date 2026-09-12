@@ -1,4 +1,4 @@
-# DevPilot
+# DevAnalyzeX
 
 A static analysis platform for software repositories — detect code quality, security, and maintainability issues through a REST API and web dashboard.
 
@@ -6,9 +6,9 @@ A static analysis platform for software repositories — detect code quality, se
 
 ## Overview
 
-DevPilot is a full-stack code intelligence platform that runs static analysis against local code repositories and surfaces findings categorized by severity. You point it at a directory on disk, it walks the source files line by line, and stores every detected issue in a queryable PostgreSQL database.
+DevAnalyzeX is a full-stack code intelligence platform that runs static analysis against local code repositories and surfaces findings categorized by severity. You point it at a directory on disk, it walks the source files line by line, and stores every detected issue in a queryable PostgreSQL database.
 
-**Problem it solves:** Manually auditing codebases for debug statements, broad error handling, hardcoded credentials, and unfinished work markers is tedious and error-prone. DevPilot automates that sweep and makes the results accessible via a REST API and a Next.js dashboard.
+**Problem it solves:** Manually auditing codebases for debug statements, broad error handling, hardcoded credentials, and unfinished work markers is tedious and error-prone. DevAnalyzeX automates that sweep and makes the results accessible via a REST API and a Next.js dashboard.
 
 **Core workflow:**
 
@@ -209,8 +209,8 @@ devpilot/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/RahilAlam929/devpilot.git
-cd devpilot
+git clone https://github.com/RahilAlam929/devanalyzex.git
+cd devanalyzex
 ```
 
 ### 2. Start PostgreSQL
@@ -314,7 +314,7 @@ AUTH_COOKIE_NAME=devpilot_token
 
 ## Authentication
 
-DevPilot uses stateless JWT authentication delivered via HttpOnly cookies.
+DevAnalyzeX uses stateless JWT authentication delivered via HttpOnly cookies.
 
 ### Flow
 
@@ -438,7 +438,7 @@ All routes are prefixed with `/api`. Protected routes require the `devpilot_toke
 }
 ```
 
-> The `url` field is stored for reference only. DevPilot does not clone repositories.
+> The `url` field is stored for reference only. DevAnalyzeX does not clone repositories.
 
 ### Scans
 
@@ -834,4 +834,4 @@ License information has not yet been added to this repository.
 
 ## Project Status
 
-DevPilot is in active early development. The backend API is functional — authentication, resource management, and the scan engine all work end to end. The frontend is a working prototype with hardcoded identifiers; it demonstrates the scan workflow but is not yet connected to the authentication system. There are no automated tests and no production deployment configuration. The project is suitable for local development and learning, not production use.
+DevAnalyzeX is in active early development. The backend API is functional — authentication, resource management, and the scan engine all work end to end. The frontend is a working prototype with hardcoded identifiers; it demonstrates the scan workflow but is not yet connected to the authentication system. There are no automated tests and no production deployment configuration. The project is suitable for local development and learning, not production use.

@@ -1,5 +1,5 @@
 /**
- * Typed API client for DevPilot backend.
+ * Typed API client for DevAnalyzeX backend.
  * All authenticated requests use credentials: "include" so the browser
  * automatically sends the HttpOnly devpilot_token cookie.
  * JWT is never read or stored by JavaScript.

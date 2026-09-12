@@ -100,7 +100,7 @@ export default function PageShell({
 
           <div className="mobile-header-brand">
             <div className="brand-mark brand-mark-sm">D</div>
-            <span className="mobile-brand-name">DevPilot</span>
+            <span className="mobile-brand-name">DevAnalyzeX</span>
           </div>
 
           <div className="mobile-header-right">

@@ -6,12 +6,16 @@ import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { logout } from "@/lib/auth";
 
-const NAV_ITEMS = [
+const WORKSPACE_ITEMS = [
   { href: "/dashboard", icon: "⌂", label: "Dashboard" },
   { href: "/projects", icon: "◈", label: "Projects" },
   { href: "/repositories", icon: "⌘", label: "Repositories" },
   { href: "/scans", icon: "↗", label: "Scans" },
   { href: "/findings", icon: "!", label: "Findings" },
+] as const;
+
+const RESOURCE_ITEMS = [
+  { href: "/blog", icon: "✦", label: "Blog" },
 ] as const;
 
 interface SidebarProps {
@@ -86,7 +90,7 @@ export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         <div className="brand">
           <div className="brand-mark">D</div>
           <div>
-            <div className="brand-name">DevPilot</div>
+            <div className="brand-name">DevAnalyzeX</div>
             <div className="brand-subtitle">Code Intelligence</div>
           </div>
         </div>
@@ -94,7 +98,21 @@ export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         <nav className="nav">
           <div className="nav-section">WORKSPACE</div>
 
-          {NAV_ITEMS.map(({ href, icon, label }) => (
+          {WORKSPACE_ITEMS.map(({ href, icon, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`nav-item${pathname === href || pathname.startsWith(href + "/") ? " active" : ""}`}
+              onClick={handleNavClick}
+            >
+              <span aria-hidden="true">{icon}</span>
+              {label}
+            </Link>
+          ))}
+
+          <div className="nav-section">RESOURCES</div>
+
+          {RESOURCE_ITEMS.map(({ href, icon, label }) => (
             <Link
               key={href}
               href={href}
