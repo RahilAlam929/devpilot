@@ -43,6 +43,12 @@ from app.services.scan_engine.findings.types import (
 )
 from app.services.scan_engine.scanner.confidence import apply_confidence
 from app.services.scan_engine.scanner.deduplication import generate_fingerprint
+from app.services.scan_engine.scanner.innerHTML_classifier import (
+    ClassificationResult,
+    SourceClass,
+    classify_innerHTML_source,
+    extract_innerHTML_rhs,
+)
 from app.services.scan_engine.scanner.remediation import enrich_remediation
 from app.services.scan_engine.scanner.suppression import SuppressionMap, is_suppressed
 
@@ -133,6 +139,14 @@ _SINKS: List[Tuple[str, re.Pattern, str, str, str, str]] = [
         "JS005",
         re.compile(r"\.outerHTML\s*="),
         "Direct outerHTML assignment",
+        FindingCategory.XSS.value,
+        "medium",
+        "CWE-79",
+    ),
+    (
+        "JS005",
+        re.compile(r"\.insertAdjacentHTML\s*\("),
+        "insertAdjacentHTML() call",
         FindingCategory.XSS.value,
         "medium",
         "CWE-79",
@@ -398,24 +412,29 @@ def _check_security_sinks(
             if sup_map and is_suppressed(sup_map, lineno, rule_id):
                 continue
 
-            # Context: look for user source and sanitizers nearby
+            # ── JS005 sinks: use classifier for source-to-sink analysis ──
+            if rule_id == "JS005":
+                _emit_js005_finding(
+                    lines, lineno_0, lineno, line, snippet,
+                    title, category, cwe, file_path, language,
+                    findings,
+                )
+                break  # one finding per line per rule group
+
+            # ── All other sinks: existing context-window approach ─────────
             has_source, source_label = _has_source_near(lines, lineno_0)
             has_sanitizer = _has_sanitizer_near(lines, lineno_0)
 
-            # Adjust severity based on context
             effective_severity = severity
             if has_source and not has_sanitizer:
-                # escalate if source found
                 if severity == "medium":
                     effective_severity = "high"
             elif has_sanitizer:
-                # downgrade if sanitized
                 if severity == "high":
                     effective_severity = "medium"
                 elif severity == "medium":
                     effective_severity = "low"
 
-            # Build lightweight data flow if source found
             data_flow: List[DataFlowStep] = []
             source: Optional[SourceInfo] = None
             if has_source and source_label:
@@ -454,10 +473,154 @@ def _check_security_sinks(
                 has_sanitizer=has_sanitizer,
                 is_ast_confirmed=False,
                 is_regex_only=not has_source,
-                flow_is_incomplete=has_source,  # context window is not definitive
+                flow_is_incomplete=has_source,
             )
             findings.append(finding)
             break  # one finding per line per rule group
+
+
+# ---------------------------------------------------------------------------
+# JS005 — innerHTML / outerHTML / insertAdjacentHTML with classifier
+# ---------------------------------------------------------------------------
+
+_JS005_TITLES = {
+    "Direct innerHTML assignment",
+    "Direct outerHTML assignment",
+    "insertAdjacentHTML() call",
+}
+
+
+def _emit_js005_finding(
+    lines: List[str],
+    lineno_0: int,
+    lineno: int,
+    line: str,
+    snippet: str,
+    title: str,
+    category: str,
+    cwe: str,
+    file_path: str,
+    language: str,
+    findings: List[RichFindingResult],
+) -> None:
+    """
+    Emit a JS005 finding using the innerHTML source classifier.
+
+    The classifier traces the RHS expression backward through variable
+    assignments to determine the origin of the value.  Severity and
+    confidence are set based on the classified source class:
+
+    USER_INPUT / URL_DATA  → high severity, high confidence
+    API_RESPONSE / EXTERNAL → medium severity, medium confidence
+    STATIC_CONSTANT        → info severity, low confidence (false-positive candidate)
+    TRUSTED_INTERNAL       → info severity, very low confidence
+    UNKNOWN                → medium severity, ~50% confidence, manual review
+    """
+    # Extract RHS from the assignment line
+    rhs = extract_innerHTML_rhs(line)
+
+    # Run classifier
+    classification: ClassificationResult = classify_innerHTML_source(
+        lines, lineno_0, rhs
+    )
+
+    cls = classification.source_class
+    effective_severity = classification.severity
+
+    # Build title suffix
+    suffix_map = {
+        SourceClass.USER_INPUT:       " with user-controlled input",
+        SourceClass.URL_DATA:         " with URL/query data",
+        SourceClass.API_RESPONSE:     " with API response data",
+        SourceClass.EXTERNAL_DATA:    " with external channel data",
+        SourceClass.STATIC_CONSTANT:  " (static content — low risk)",
+        SourceClass.TRUSTED_INTERNAL: " (trusted internal markup — low risk)",
+        SourceClass.UNKNOWN:          "",
+    }
+    full_title = title + suffix_map.get(cls, "")
+
+    # Build description
+    if cls in (SourceClass.STATIC_CONSTANT, SourceClass.TRUSTED_INTERNAL):
+        description = (
+            f"{title} detected. "
+            f"Source classification: {cls.value}. "
+            f"The assigned value appears to be a static/internal constant — "
+            f"this is unlikely to be exploitable as XSS. "
+            f"Review to confirm no external data can reach this sink."
+        )
+    elif cls == SourceClass.UNKNOWN:
+        description = (
+            f"{title} detected. "
+            "Source could not be proven trusted; manual review required. "
+            f"Evidence: {classification.evidence}"
+        )
+    else:
+        description = (
+            f"{title} detected. "
+            f"Source classification: {cls.value}. "
+            f"{classification.evidence}."
+        )
+
+    # Build data flow steps
+    data_flow: List[DataFlowStep] = []
+    source: Optional[SourceInfo] = None
+
+    if classification.data_flow_hint:
+        for i, step_text in enumerate(classification.data_flow_hint):
+            step_type = "source" if i == 0 else ("sink" if i == len(classification.data_flow_hint) - 1 else "assignment")
+            data_flow.append(DataFlowStep(label=step_text[:80], line=max(1, lineno - len(classification.data_flow_hint) + i), step_type=step_type))
+
+    if cls not in (SourceClass.STATIC_CONSTANT, SourceClass.TRUSTED_INTERNAL, SourceClass.UNKNOWN):
+        source = SourceInfo(
+            label=classification.evidence[:60],
+            line=max(1, lineno - 5),
+            is_user_controlled=(cls in (SourceClass.USER_INPUT, SourceClass.URL_DATA)),
+        )
+
+    finding = RichFindingResult(
+        severity=effective_severity,
+        title=full_title,
+        description=description,
+        file_path=file_path,
+        line_number=lineno,
+        rule_id="JS005",
+        category=category,
+        code_snippet=snippet,
+        language=language,
+        analyzer="ast" if cls != SourceClass.UNKNOWN else "regex",
+        cwe=cwe,
+        evidence=classification.evidence[:120],
+        source=source,
+        sink=SinkInfo(
+            label=snippet[:80],
+            line=lineno,
+            api=title,
+            is_sanitized=classification.sanitizer_detected,
+        ),
+        data_flow=data_flow,
+    )
+
+    # Apply confidence using classifier's delta
+    # Base confidence from rule (55), adjusted by classification delta
+    base = 55 + classification.confidence_delta
+    finding.confidence = max(5, min(95, base))
+
+    # Then apply standard signals on top
+    is_user_ctrl = cls in (SourceClass.USER_INPUT, SourceClass.URL_DATA)
+    is_static = cls in (SourceClass.STATIC_CONSTANT, SourceClass.TRUSTED_INTERNAL)
+
+    apply_confidence(
+        finding,
+        has_user_controlled_source=is_user_ctrl,
+        has_direct_flow=is_user_ctrl,
+        has_sanitizer=classification.sanitizer_detected,
+        is_ast_confirmed=False,
+        is_regex_only=(cls == SourceClass.UNKNOWN),
+        flow_is_incomplete=(cls == SourceClass.UNKNOWN),
+        source_is_constant=is_static,
+    )
+
+    findings.append(finding)
 
 
 # ---------------------------------------------------------------------------
