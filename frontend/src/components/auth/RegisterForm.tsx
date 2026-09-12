@@ -56,13 +56,12 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
       <form onSubmit={(e) => { void handleSubmit(e); }} className="auth-form" noValidate>
         <label className="field">
-          <span>Full name</span>
+          <span>Name</span>
           <input
             type="text"
             autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Alice Smith"
             disabled={loading}
           />
         </label>

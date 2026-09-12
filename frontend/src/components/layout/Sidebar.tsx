@@ -15,7 +15,7 @@ const WORKSPACE_ITEMS = [
 ] as const;
 
 const RESOURCE_ITEMS = [
-  { href: "/blog", icon: "✦", label: "Blog" },
+  { href: "/blog", label: "Blog" },
 ] as const;
 
 interface SidebarProps {
@@ -112,14 +112,13 @@ export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
           <div className="nav-section">RESOURCES</div>
 
-          {RESOURCE_ITEMS.map(({ href, icon, label }) => (
+          {RESOURCE_ITEMS.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
               className={`nav-item${pathname === href || pathname.startsWith(href + "/") ? " active" : ""}`}
               onClick={handleNavClick}
             >
-              <span aria-hidden="true">{icon}</span>
               {label}
             </Link>
           ))}
